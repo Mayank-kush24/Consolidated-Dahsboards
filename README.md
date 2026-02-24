@@ -77,10 +77,7 @@ These columns should contain valid JSON objects, e.g.:
 
 The app shows a login page first. Default users (change in production):
 
-| Username | Password  | Role   | Permissions                          |
-|----------|------------|--------|--------------------------------------|
-| admin    | admin123   | admin  | Full access; change sheet, connect   |
-| viewer   | viewer123  | viewer | View dashboard only (default sheet)  |
+
 
 **Changing a password**
 
