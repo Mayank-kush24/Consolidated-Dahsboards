@@ -1,0 +1,8 @@
+[server]
+port = 3005
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false

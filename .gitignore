@@ -1,0 +1,33 @@
+# Google Service Account key (never commit)
+credentials.json
+vision-playground-*.json
+*-????????-????-????-????-????????????.json
+
+# Persisted session (local only)
+auth_session.json
+
+# Event dashboard links and credentials (sensitive)
+event_dashboard_config.json
+
+# Optional: example file with placeholder structure (uncomment if you use a real example)
+# credentials.example.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
