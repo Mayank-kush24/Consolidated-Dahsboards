@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Event Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { slate: { 850: '#0f172a', 900: '#0c1222' } },
+                    fontFamily: { sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { background: #0f172a; }
+        .login-card {
+            background: #162032;
+            border: 1px solid #233044;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.06);
+        }
+        .login-input {
+            background: #0f172a;
+            border: 1px solid #2a3a52;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .login-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+        .login-input::placeholder { color: #475569; }
+        .login-btn {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            box-shadow: 0 4px 16px rgba(99,102,241,0.35);
+            transition: all 0.2s;
+        }
+        .login-btn:hover {
+            box-shadow: 0 6px 24px rgba(99,102,241,0.5);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="font-sans min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-[400px]">
+        <div class="login-card rounded-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="text-center px-8 pt-10 pb-6">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-400 mb-4 shadow-lg shadow-indigo-500/30">
+                    <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+                <h1 class="text-2xl font-extrabold text-slate-100 tracking-tight mb-1">Event Analytics</h1>
+                <p class="text-sm text-slate-500">Sign in to access your dashboard</p>
+            </div>
+
+            <!-- Form -->
+            <form method="POST" action="{{ url_for('login') }}" class="px-8 pb-8 space-y-4">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="px-4 py-3 rounded-xl text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                    {{ message }}
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                <div>
+                    <label for="username" class="block text-xs font-semibold text-slate-400 mb-1.5 tracking-wide">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Enter your username" required autocomplete="username"
+                           class="login-input w-full rounded-xl px-4 py-3 text-sm text-slate-200 outline-none">
+                </div>
+                <div>
+                    <label for="password" class="block text-xs font-semibold text-slate-400 mb-1.5 tracking-wide">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required autocomplete="current-password"
+                           class="login-input w-full rounded-xl px-4 py-3 text-sm text-slate-200 outline-none">
+                </div>
+                <div class="pt-2">
+                    <button type="submit" class="login-btn w-full rounded-xl px-4 py-3 text-sm font-semibold text-white">
+                        Sign in
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,195 @@
+/* =============================================
+   Event Analytics Dashboard — Custom Styles
+   Dark slate theme on top of Tailwind
+   ============================================= */
+
+:root {
+    --bg:       #0f172a;
+    --card:     #1e293b;
+    --surface:  #334155;
+    --accent:   #6366f1;
+    --accent2:  #818cf8;
+    --green:    #10b981;
+    --amber:    #f59e0b;
+    --red:      #ef4444;
+    --sky:      #38bdf8;
+    --text:     #e2e8f0;
+    --text2:    #94a3b8;
+    --muted:    #64748b;
+    --border:   #334155;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 3px; }
+
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+
+/* ── Sidebar menu button (always visible in header) ── */
+.sidebar-menu-btn {
+    min-height: 2.5rem;
+    min-width: 2.75rem;
+}
+.sidebar-menu-btn:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* ── KPI Cards ── */
+.kpi-card {
+    padding: 1rem 1.15rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.kpi-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.65);
+}
+.kpi-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.8);
+}
+.kpi-value {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+}
+
+.kpi-indigo  { background: linear-gradient(135deg, #4f46e5, #6366f1); }
+.kpi-emerald { background: linear-gradient(135deg, #059669, #10b981); }
+.kpi-amber   { background: linear-gradient(135deg, #d97706, #f59e0b); }
+.kpi-sky     { background: linear-gradient(135deg, #0284c7, #38bdf8); }
+
+/* ── Section label ── */
+.sec-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 1.25rem 0 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid #1e293b;
+}
+
+/* ── Chart card ── */
+.chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+/* ── Tabs ── */
+.tab-btn {
+    padding: 0.5rem 1.2rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text2);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    background: none;
+    cursor: pointer;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-active {
+    color: var(--text) !important;
+    font-weight: 600;
+    border-bottom-color: var(--accent) !important;
+}
+
+/* ── Dashboard link ── */
+.dash-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.9rem;
+    background: rgba(99,102,241,0.12);
+    color: var(--accent2);
+    border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.78rem;
+    transition: all 0.15s;
+}
+.dash-link:hover {
+    background: rgba(99,102,241,0.2);
+    color: #a5b4fc;
+}
+
+/* ── Empty state ── */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+.empty-icon {
+    display: block;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+/* ── Settings ── */
+.settings-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.15rem 1.25rem;
+}
+.settings-field {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+    font-size: 0.8rem;
+    color: var(--text2);
+}
+.settings-label {
+    font-weight: 500;
+    color: #cbd5e1;
+    min-width: 80px;
+}
+.settings-value {
+    color: var(--text2);
+    word-break: break-all;
+}
+.settings-input {
+    width: 100%;
+    font-size: 0.82rem;
+    background: var(--bg);
+    border: 1px solid #2a3a52;
+    border-radius: 10px;
+    padding: 0.55rem 0.8rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.settings-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+}
+.settings-input::placeholder { color: #475569; }
+
+/* ── Flash message auto-fade ── */
+.flash-msg {
+    animation: flashFade 4s ease-in-out forwards;
+}
+@keyframes flashFade {
+    0%, 70% { opacity: 1; }
+    100%    { opacity: 0; display: none; }
+}

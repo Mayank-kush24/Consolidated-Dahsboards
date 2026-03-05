@@ -8,7 +8,6 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 from typing import Optional
-import streamlit as st
 
 logger = logging.getLogger(__name__)
 
@@ -68,22 +67,18 @@ def load_sheet_data(sheet_id: str, credentials_path: str = "credentials.json") -
         df = _normalize_columns(df)
         logger.info("Sheet loaded successfully: %d rows, %d columns", len(df), len(df.columns))
         return df
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         logger.error("Credentials file not found: %s", credentials_path, exc_info=True)
-        st.error(f"Credentials file not found: {credentials_path}")
-        return None
+        raise RuntimeError(f"Credentials file not found: {credentials_path}")
     except gspread.exceptions.APIError as e:
         logger.error("Google Sheets API error: %s", e, exc_info=True)
-        st.error(f"Google Sheets API error: {e}")
-        return None
+        raise RuntimeError(f"Google Sheets API error: {e}")
     except gspread.exceptions.SpreadsheetNotFound as e:
         logger.error("Spreadsheet not found (check Sheet ID and sharing): %s", e, exc_info=True)
-        st.error(f"Spreadsheet not found. Check the Sheet ID and ensure the sheet is shared with the service account email.")
-        return None
+        raise RuntimeError("Spreadsheet not found. Check the Sheet ID and ensure the sheet is shared with the service account email.")
     except Exception as e:
         logger.exception("Failed to load sheet: %s", e)
-        st.error(f"Failed to load sheet: {e}")
-        return None
+        raise RuntimeError(f"Failed to load sheet: {e}")
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:

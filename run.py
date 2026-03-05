@@ -4,19 +4,7 @@ Usage: python run.py
 Then open http://localhost:3005 in your browser.
 """
 
-import subprocess
-import sys
+from server import app
 
 if __name__ == "__main__":
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "streamlit",
-            "run",
-            "app.py",
-            "--server.port=3005",
-            "--server.headless=true",
-        ],
-        check=True,
-    )
+    app.run(host="0.0.0.0", port=3005, debug=True)

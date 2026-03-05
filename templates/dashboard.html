@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Empty state: no data -->
+<div id="empty-no-data" class="empty-state {{ '' if not events else 'hidden' }}">
+    <div class="empty-icon">
+        <svg class="w-12 h-12 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+    </div>
+    <p class="text-sm text-slate-500 mt-2">Connect to a Google Sheet from the sidebar to get started.</p>
+</div>
+
+<!-- Empty state: no selection -->
+<div id="empty-no-selection" class="empty-state {{ '' if events and not selected else 'hidden' }}">
+    <div class="empty-icon">
+        <svg class="w-12 h-12 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+    </div>
+    <p class="text-sm text-slate-500 mt-2">Select an event from the sidebar to view analytics.</p>
+</div>
+
+<!-- Loading state -->
+<div id="loading-state" class="empty-state hidden">
+    <div class="flex items-center justify-center gap-2 text-slate-500">
+        <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        <span class="text-sm">Loading analytics...</span>
+    </div>
+</div>
+
+<!-- Dashboard content -->
+<div id="dashboard-content" class="{{ '' if selected else 'hidden' }}">
+    <!-- Event Header -->
+    <div class="flex items-center justify-between mb-5">
+        <h2 id="event-title" class="text-lg font-bold text-slate-100">{{ selected }}</h2>
+        <a id="dashboard-link" href="#" target="_blank" class="dash-link hidden">
+            Open dashboard
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </a>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <div class="kpi-card kpi-indigo">
+            <div class="flex items-center justify-between mb-2">
+                <span class="kpi-label">Registrations</span>
+                <div class="kpi-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
+            </div>
+            <div id="kpi-registrations" class="kpi-value">0</div>
+        </div>
+        <div class="kpi-card kpi-emerald">
+            <div class="flex items-center justify-between mb-2">
+                <span class="kpi-label">Submissions</span>
+                <div class="kpi-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </div>
+            </div>
+            <div id="kpi-submissions" class="kpi-value">0</div>
+        </div>
+        <div class="kpi-card kpi-amber">
+            <div class="flex items-center justify-between mb-2">
+                <span class="kpi-label">Teams</span>
+                <div class="kpi-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+                </div>
+            </div>
+            <div id="kpi-teams" class="kpi-value">0</div>
+        </div>
+        <div class="kpi-card kpi-sky">
+            <div class="flex items-center justify-between mb-2">
+                <span class="kpi-label">Page Visits</span>
+                <div class="kpi-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/></svg>
+                </div>
+            </div>
+            <div id="kpi-visits" class="kpi-value">0</div>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div id="progress-section" class="hidden mb-5">
+        <div class="flex justify-between items-baseline mb-1.5">
+            <span class="text-xs font-semibold text-slate-200">Registration Progress</span>
+            <span id="progress-stats" class="text-xs text-slate-500">0 / 0 (0%)</span>
+        </div>
+        <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+            <div id="progress-fill" class="h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r from-indigo-600 to-indigo-400" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- Admin Credentials -->
+    <div id="credentials-section" class="hidden mb-5">
+        <button onclick="toggleCredentials()" class="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-300 transition-colors mb-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            Admin Credentials
+            <svg id="creds-chevron" class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div id="credentials-panel" class="hidden bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[0.68rem] font-semibold text-slate-500 mb-1 uppercase tracking-wider">Username</label>
+                    <div id="cred-username" class="text-sm text-slate-300 font-mono bg-slate-850 rounded-lg px-3 py-2 border border-slate-700">—</div>
+                </div>
+                <div>
+                    <label class="block text-[0.68rem] font-semibold text-slate-500 mb-1 uppercase tracking-wider">Password</label>
+                    <div id="cred-password" class="text-sm text-slate-300 font-mono bg-slate-850 rounded-lg px-3 py-2 border border-slate-700">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registration Trend -->
+    <div class="mb-6">
+        <div class="sec-label">Registration Trend</div>
+        <div class="chart-card">
+            <div id="chart-daily" class="w-full" style="height: 400px;"></div>
+            <div id="daily-empty" class="empty-state hidden">
+                <p class="text-sm text-slate-500">No daily registration data for this event.</p>
+            </div>
+            <p id="daily-caption" class="text-xs text-slate-500 mt-2 px-2 hidden"></p>
+        </div>
+    </div>
+
+    <!-- Breakdown Tabs -->
+    <div class="sec-label">Breakdown</div>
+    <div class="mb-6">
+        <div class="flex border-b border-slate-700 mb-4">
+            <button onclick="switchTab('demographics')" id="tab-demographics" class="tab-btn tab-active">Demographics</button>
+            <button onclick="switchTab('geography')" id="tab-geography" class="tab-btn">Geography</button>
+        </div>
+
+        <!-- Demographics -->
+        <div id="panel-demographics">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="chart-card">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">Gender</h4>
+                    <div id="chart-gender" class="w-full" style="height: 320px;"></div>
+                    <div id="gender-empty" class="empty-state hidden">
+                        <p class="text-sm text-slate-500">No data</p>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">Occupation</h4>
+                    <div id="chart-occupation" class="w-full" style="height: 320px;"></div>
+                    <div id="occupation-empty" class="empty-state hidden">
+                        <p class="text-sm text-slate-500">No data</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Geography -->
+        <div id="panel-geography" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="chart-card">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">Country</h4>
+                    <div id="chart-country" class="w-full" style="height: 380px;"></div>
+                    <div id="country-empty" class="empty-state hidden">
+                        <p class="text-sm text-slate-500">No data</p>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">State</h4>
+                    <div id="chart-state" class="w-full" style="height: 380px;"></div>
+                    <div id="state-empty" class="empty-state hidden">
+                        <p class="text-sm text-slate-500">No data</p>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">City</h4>
+                <div id="chart-city" class="w-full" style="height: 420px;"></div>
+                <div id="city-empty" class="empty-state hidden">
+                    <p class="text-sm text-slate-500">No data</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+    {% if selected %}
+    document.addEventListener('DOMContentLoaded', function() {
+        loadEventData('{{ selected }}');
+    });
+    {% endif %}
+</script>
+{% endblock %}

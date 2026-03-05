@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Event Analytics{% endblock %}
+
+{% block breadcrumb %}
+<span class="text-slate-600">/</span>
+<span class="text-slate-300 font-medium">Settings</span>
+{% endblock %}
+
+{% block content %}
+<div class="mb-5">
+    <h2 class="text-lg font-bold text-slate-100 mb-1">Event Settings</h2>
+    <p class="text-sm text-slate-500">Configure dashboard links, admin credentials, and registration targets.</p>
+</div>
+
+{% if not event_configs %}
+<div class="empty-state">
+    <div class="empty-icon">
+        <svg class="w-12 h-12 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    </div>
+    <p class="text-sm text-slate-500 mt-2">Load events from the dashboard first, then return here.</p>
+</div>
+{% else %}
+
+<div class="space-y-3">
+    {% for ec in event_configs %}
+    <div class="settings-card" id="card-{{ loop.index }}">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-slate-200">{{ ec.name }}</h3>
+            {% if is_admin %}
+            <button onclick="toggleEdit({{ loop.index }})" id="edit-toggle-{{ loop.index }}"
+                    class="text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors px-3 py-1 rounded-lg hover:bg-indigo-500/10">
+                Edit
+            </button>
+            {% endif %}
+        </div>
+
+        <!-- View mode -->
+        <div id="view-{{ loop.index }}" class="space-y-1.5">
+            <div class="settings-field">
+                <span class="settings-label">Link</span>
+                <span class="settings-value">
+                    {% if ec.dashboard_link %}
+                    <a href="{{ ec.dashboard_link }}" target="_blank" class="text-indigo-400 hover:text-indigo-300 transition-colors">
+                        {{ ec.dashboard_link[:50] }}{{ '...' if ec.dashboard_link|length > 50 else '' }}
+                    </a>
+                    {% else %}
+                    <span class="text-slate-600">—</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="settings-field">
+                <span class="settings-label">Username</span>
+                <span class="settings-value">{{ ec.admin_username or '—' }}</span>
+            </div>
+            <div class="settings-field">
+                <span class="settings-label">Password</span>
+                <span class="settings-value">{{ '••••••' if ec.admin_password else '—' }}</span>
+            </div>
+            <div class="settings-field">
+                <span class="settings-label">Target</span>
+                <span class="settings-value">{{ '{:,}'.format(ec.registration_target) if ec.registration_target else '—' }}</span>
+            </div>
+        </div>
+
+        <!-- Edit mode -->
+        {% if is_admin %}
+        <form id="edit-{{ loop.index }}" class="hidden" method="POST" action="{{ url_for('settings_save') }}">
+            <input type="hidden" name="event_name" value="{{ ec.name }}">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Dashboard Link</label>
+                    <input type="url" name="dashboard_link" value="{{ ec.dashboard_link }}" placeholder="https://..."
+                           class="settings-input">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Admin Username</label>
+                        <input type="text" name="admin_username" value="{{ ec.admin_username }}" placeholder="Username"
+                               class="settings-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Admin Password</label>
+                        <input type="text" name="admin_password" value="{{ ec.admin_password }}" placeholder="Password"
+                               class="settings-input">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Registration Target</label>
+                    <input type="number" name="registration_target" value="{{ ec.registration_target }}" min="0" placeholder="0"
+                           class="settings-input">
+                </div>
+                <div class="flex gap-2 pt-1">
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-lg hover:from-indigo-500 hover:to-indigo-400 transition-all shadow-sm hover:shadow-indigo-500/25">
+                        Save
+                    </button>
+                    <button type="button" onclick="toggleEdit({{ loop.index }})" class="px-4 py-2 text-xs font-medium text-slate-400 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+function toggleEdit(idx) {
+    const view = document.getElementById('view-' + idx);
+    const edit = document.getElementById('edit-' + idx);
+    const btn = document.getElementById('edit-toggle-' + idx);
+    const isHidden = edit.classList.contains('hidden');
+    view.classList.toggle('hidden');
+    edit.classList.toggle('hidden');
+    btn.textContent = isHidden ? 'Cancel' : 'Edit';
+}
+</script>
+{% endblock %}
