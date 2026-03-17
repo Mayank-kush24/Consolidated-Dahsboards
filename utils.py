@@ -130,6 +130,7 @@ COL_COUNTRY = "Country"
 COL_STATE = "State"
 COL_CITY = "City"
 COL_OCCUPATION = "Occupation"
+COL_CITY_STAT = "City Stats"
 
 NUMERIC_KPI_COLUMNS = [
     "Registration Count",

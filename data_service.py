@@ -25,6 +25,7 @@ from utils import (
     COL_STATE,
     COL_CITY,
     COL_OCCUPATION,
+    COL_CITY_STAT,
     NUMERIC_KPI_COLUMNS,
 )
 
@@ -119,6 +120,9 @@ def get_event_analytics(df: pd.DataFrame, event_name: str) -> Dict[str, Any]:
     state = _parse_distribution(filtered, COL_STATE, top_n=12)
     city = _parse_distribution(filtered, COL_CITY, top_n=15)
 
+    # City Stat
+    city_stat = _parse_distribution(filtered, COL_CITY_STAT, top_n=15)
+
     return {
         "event_name": event_name,
         "config": config,
@@ -135,6 +139,7 @@ def get_event_analytics(df: pd.DataFrame, event_name: str) -> Dict[str, Any]:
         "country": country,
         "state": state,
         "city": city,
+        "city_stat": city_stat,
     }
 
 

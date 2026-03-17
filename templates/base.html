@@ -134,6 +134,11 @@
                     </div>
                 </div>
                 <div class="flex gap-2">
+                    {% if is_admin is defined and is_admin %}
+                    <a href="{{ url_for('users_page') }}" class="flex-1 text-center text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800/50 hover:bg-slate-800 rounded-lg px-3 py-1.5 transition-colors">
+                        Users
+                    </a>
+                    {% endif %}
                     <a href="{{ url_for('settings') }}" class="flex-1 text-center text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800/50 hover:bg-slate-800 rounded-lg px-3 py-1.5 transition-colors">
                         Settings
                     </a>
@@ -227,6 +232,31 @@
             }
             btn.disabled = false;
             btn.textContent = 'Connect';
+        }
+
+        async function selectEvent(name) {
+            await fetch('/api/select', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: name }),
+            });
+            window.location.href = '/';
+        }
+        async function pinEvent(name) {
+            await fetch('/api/pin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: name, action: 'pin' }),
+            });
+            location.reload();
+        }
+        async function unpinEvent(name) {
+            await fetch('/api/pin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: name, action: 'unpin' }),
+            });
+            location.reload();
         }
     </script>
     {% endblock %}

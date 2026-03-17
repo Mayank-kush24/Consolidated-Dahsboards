@@ -21,7 +21,16 @@ from flask import (
     url_for,
 )
 
-from auth import verify_login, can_edit_sheet
+from auth import (
+    verify_login,
+    can_edit_sheet,
+    has_permission,
+    get_all_users,
+    get_user_allowed_events,
+    create_user,
+    update_user,
+    delete_user,
+)
 from config_helpers import (
     DEFAULT_CREDENTIALS_PATH,
     DEFAULT_SHEET_URL,
@@ -82,6 +91,18 @@ def _save_pinned(pinned_list):
         logger.warning("Could not save pinned initiatives: %s", e)
 
 
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("authenticated"):
+            return redirect(url_for("login"))
+        if not has_permission(session.get("role", ""), "manage_users"):
+            flash("Permission denied.", "error")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated
+
+
 def _get_df():
     """Load the dataframe using current session sheet settings or defaults."""
     sheet_url = session.get("sheet_url", DEFAULT_SHEET_URL)
@@ -90,6 +111,15 @@ def _get_df():
     if not sheet_id:
         return None
     return cached_load_sheet(sheet_id, creds_path)
+
+
+def _filter_events_for_user(events):
+    """Filter the event list based on the logged-in user's allowed_events."""
+    user = session.get("user", "")
+    allowed = get_user_allowed_events(user)
+    if not allowed:
+        return events
+    return [e for e in events if e in allowed]
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +166,8 @@ def dashboard():
     is_admin = can_edit_sheet(role)
 
     df = _get_df()
-    events = get_event_list(df)
+    all_events = get_event_list(df)
+    events = _filter_events_for_user(all_events)
     pinned = _load_pinned()
     pinned = [p for p in pinned if p in events]
 
@@ -172,7 +203,8 @@ def settings():
     is_admin = can_edit_sheet(role)
 
     df = _get_df()
-    events = get_event_list(df)
+    all_events = get_event_list(df)
+    events = _filter_events_for_user(all_events)
     config = load_event_dashboard_config()
     pinned = _load_pinned()
     pinned = [p for p in pinned if p in events]
@@ -233,7 +265,8 @@ def api_data():
     if df is None or df.empty:
         return jsonify({"error": "No data available"}), 404
 
-    events = get_event_list(df)
+    all_events = get_event_list(df)
+    events = _filter_events_for_user(all_events)
     if event not in events:
         return jsonify({"error": "Event not found"}), 404
 
@@ -289,6 +322,81 @@ def api_connect():
     session["credentials_path"] = creds_path
     events = get_event_list(df)
     return jsonify({"ok": True, "event_count": len(events), "events": events})
+
+
+# ---------------------------------------------------------------------------
+# Routes: User Management
+# ---------------------------------------------------------------------------
+@app.route("/users")
+@admin_required
+def users_page():
+    user = session.get("user", "")
+    role = session.get("role", "viewer")
+    is_admin = can_edit_sheet(role)
+
+    df = _get_df()
+    all_events = get_event_list(df)
+    events = _filter_events_for_user(all_events)
+    pinned = _load_pinned()
+    pinned = [p for p in pinned if p in events]
+
+    return render_template(
+        "users.html",
+        user=user,
+        role=role,
+        is_admin=is_admin,
+        events=events,
+        pinned=pinned,
+        all_events=all_events,
+    )
+
+
+@app.route("/api/users", methods=["GET"])
+@admin_required
+def api_users_list():
+    return jsonify({"ok": True, "users": get_all_users()})
+
+
+@app.route("/api/users", methods=["POST"])
+@admin_required
+def api_users_create():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    role = data.get("role", "viewer")
+    allowed_events = data.get("allowed_events", [])
+
+    ok, msg = create_user(username, password, role, allowed_events)
+    if not ok:
+        return jsonify({"ok": False, "error": msg}), 400
+    logger.info("Admin '%s' created user '%s' (role=%s)", session.get("user"), username, role)
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/api/users/<username>", methods=["PUT"])
+@admin_required
+def api_users_update(username):
+    data = request.get_json(silent=True) or {}
+    password = data.get("password")
+    role = data.get("role")
+    allowed_events = data.get("allowed_events")
+
+    ok, msg = update_user(username, password=password, role=role, allowed_events=allowed_events)
+    if not ok:
+        return jsonify({"ok": False, "error": msg}), 400
+    logger.info("Admin '%s' updated user '%s'", session.get("user"), username)
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/api/users/<username>", methods=["DELETE"])
+@admin_required
+def api_users_delete(username):
+    requesting_user = session.get("user", "")
+    ok, msg = delete_user(username, requesting_user)
+    if not ok:
+        return jsonify({"ok": False, "error": msg}), 400
+    logger.info("Admin '%s' deleted user '%s'", requesting_user, username)
+    return jsonify({"ok": True, "message": msg})
 
 
 # ---------------------------------------------------------------------------

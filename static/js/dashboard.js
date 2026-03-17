@@ -23,21 +23,21 @@ const COLORS = {
 const PLOTLY_LAYOUT = {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor:  'rgba(0,0,0,0)',
-    font: { family: 'Inter, -apple-system, sans-serif', size: 13, color: COLORS.text },
+    font: { family: 'Inter, -apple-system, sans-serif', size: 13, color: '#ffffff' },
     margin: { l: 50, r: 30, t: 30, b: 50 },
     xaxis: {
         gridcolor: 'rgba(148,163,184,0.08)',
         zerolinecolor: 'rgba(148,163,184,0.1)',
-        title_font: { size: 12, color: COLORS.text2 },
-        tickfont:   { size: 11, color: COLORS.muted },
+        title_font: { size: 12, color: '#ffffff' },
+        tickfont:   { size: 11, color: '#ffffff' },
     },
     yaxis: {
         gridcolor: 'rgba(148,163,184,0.08)',
         zerolinecolor: 'rgba(148,163,184,0.1)',
-        title_font: { size: 12, color: COLORS.text2 },
-        tickfont:   { size: 11, color: COLORS.muted },
+        title_font: { size: 12, color: '#ffffff' },
+        tickfont:   { size: 11, color: '#ffffff' },
     },
-    hoverlabel: { bgcolor: COLORS.card, font_color: COLORS.text, bordercolor: COLORS.border },
+    hoverlabel: { bgcolor: COLORS.card, font: { color: '#ffffff' }, bordercolor: COLORS.border },
 };
 
 const PLOTLY_CONFIG = { displayModeBar: false, responsive: true };
@@ -135,7 +135,7 @@ async function unpinEvent(name) {
 
 // ── Tab switching ──
 function switchTab(tab) {
-    const tabs = ['demographics', 'geography'];
+    const tabs = ['demographics', 'geography', 'citystat'];
     tabs.forEach(t => {
         const btn   = document.getElementById('tab-' + t);
         const panel = document.getElementById('panel-' + t);
@@ -172,6 +172,17 @@ function renderAll(data) {
     renderBarChart('chart-country', 'country-empty', data.country, [[0,'#1e3a5f'],[1,'#818cf8']]);
     renderBarChart('chart-state',   'state-empty',   data.state,   [[0,'#134e4a'],[1,'#34d399']]);
     renderBarChart('chart-city',    'city-empty',    data.city,    [[0,'#312e81'],[1,'#a78bfa']], 420);
+    renderBarChart('chart-citystat', 'citystat-empty', data.city_stat, [[0,'#1e3a5f'],[1,'#38bdf8']], 420);
+    toggleCityStatTab(data.city_stat);
+}
+
+function toggleCityStatTab(cityStatData) {
+    const tab = document.getElementById('tab-citystat');
+    if (!cityStatData || cityStatData.length === 0) {
+        tab.classList.add('hidden');
+    } else {
+        tab.classList.remove('hidden');
+    }
 }
 
 function renderEventHeader(data) {
@@ -268,15 +279,15 @@ function renderDailyChart(daily) {
         bargap: 0.15,
         legend: {
             orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1,
-            font: { size: 11, color: COLORS.text2 }, bgcolor: 'rgba(0,0,0,0)',
+            font: { size: 11, color: '#ffffff' }, bgcolor: 'rgba(0,0,0,0)',
         },
         xaxis: { title: { text: 'Date' } },
         yaxis: { title: { text: 'Daily' } },
         yaxis2: {
             title: { text: 'Cumulative' },
             overlaying: 'y', side: 'right', showgrid: false,
-            title_font: { size: 12, color: COLORS.accent2 },
-            tickfont:   { size: 11, color: COLORS.accent2 },
+            title_font: { size: 12, color: '#ffffff' },
+            tickfont:   { size: 11, color: '#ffffff' },
         },
         shapes: [],
         annotations: [],
@@ -363,7 +374,7 @@ function renderPieChart(containerId, emptyId, data, colorSeq) {
     const layout = mergeLayout({
         height: 320,
         showlegend: true,
-        legend: { font: { size: 11, color: COLORS.text2 } },
+        legend: { font: { size: 11, color: '#ffffff' } },
         margin: { l: 20, r: 20, t: 20, b: 20 },
     });
 

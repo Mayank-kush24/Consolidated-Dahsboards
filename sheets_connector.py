@@ -30,6 +30,7 @@ EXPECTED_COLUMNS = [
     "State",
     "City",
     "Occupation",
+    "City Stats",
 ]
 
 

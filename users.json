@@ -1,0 +1,15 @@
+{
+  "admin": {
+    "password_hash": "25ae3b30d1bec8a142d14468e3faf13b0e19dfdda3ff72ce8ea09744c3390bcd",
+    "role": "admin",
+    "allowed_events": []
+  },
+  "promptwar": {
+    "password_hash": "4d4feacf8783c60b528911ebe5c443698adef88e6c95960fc002330a5e1e5b7b",
+    "role": "viewer",
+    "allowed_events": [
+      "Build with AI: Bootcamps",
+      "Build with AI: PromptWars"
+    ]
+  }
+}

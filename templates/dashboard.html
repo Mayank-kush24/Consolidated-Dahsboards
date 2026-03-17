@@ -130,6 +130,7 @@
         <div class="flex border-b border-slate-700 mb-4">
             <button onclick="switchTab('demographics')" id="tab-demographics" class="tab-btn tab-active">Demographics</button>
             <button onclick="switchTab('geography')" id="tab-geography" class="tab-btn">Geography</button>
+            <button onclick="switchTab('citystat')" id="tab-citystat" class="tab-btn hidden">City Choice</button>
         </div>
 
         <!-- Demographics -->
@@ -175,6 +176,17 @@
                 <div id="chart-city" class="w-full" style="height: 420px;"></div>
                 <div id="city-empty" class="empty-state hidden">
                     <p class="text-sm text-slate-500">No data</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- City Choice -->
+        <div id="panel-citystat" class="hidden">
+            <div class="chart-card">
+                <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">City Choice</h4>
+                <div id="chart-citystat" class="w-full" style="height: 420px;"></div>
+                <div id="citystat-empty" class="empty-state hidden">
+                    <p class="text-sm text-slate-500">No city choice data for this event.</p>
                 </div>
             </div>
         </div>
