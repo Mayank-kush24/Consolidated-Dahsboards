@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Event Analytics{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -28,12 +29,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block head %}{% endblock %}
+    <script>const BASE = '{{ script_root }}';</script>
 </head>
 <body class="bg-slate-850 text-slate-200 font-sans min-h-screen">
     {% block body %}
+    <div id="sidebar-backdrop" class="sidebar-backdrop hidden fixed inset-0 bg-black/50 z-20 md:hidden" aria-hidden="true"></div>
+
     <div class="flex min-h-screen">
-        <!-- Sidebar (permanently visible) -->
-        <aside id="sidebar" class="sidebar w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col fixed inset-y-0 left-0 z-20">
+        <!-- Sidebar (drawer on mobile, fixed on md+) -->
+        <aside id="sidebar" class="sidebar w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col fixed inset-y-0 left-0 z-30 -translate-x-full md:translate-x-0 transition-transform duration-200 ease-out">
             <!-- Logo -->
             <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
                 <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-400 flex items-center justify-center text-white text-sm">
@@ -78,7 +82,7 @@
                                 class="event-btn flex-1 text-left text-[0.8rem] font-medium px-3 py-2 rounded-lg transition-all duration-150 {{ 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/25' if selected is defined and selected == ev else 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' }}">
                             {{ ev }}
                         </button>
-                        <button onclick="unpinEvent('{{ ev }}')" class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 transition-all" title="Unpin">
+                        <button onclick="unpinEvent('{{ ev }}')" class="pin-action opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 transition-all" title="Unpin">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
@@ -108,7 +112,7 @@
                                     class="event-btn flex-1 text-left text-[0.8rem] font-medium px-3 py-2 rounded-lg transition-all duration-150 {{ 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/25' if selected is defined and selected == ev else 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' }}">
                                 {{ ev }}
                             </button>
-                            <button onclick="pinEvent('{{ ev }}')" class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-amber-400 transition-all" title="Pin">
+                            <button onclick="pinEvent('{{ ev }}')" class="pin-action opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-amber-400 transition-all" title="Pin">
                                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.828 3.414a2 2 0 012.344 0l.293.22a2 2 0 01.707 1.532V7h1.414a1 1 0 01.707 1.707l-5 5a1 1 0 01-1.414 0l-5-5A1 1 0 014.586 7H6V5.166a2 2 0 01.707-1.532l.293-.22zM9 13.586L5.414 10H7a1 1 0 001-1V5.166l.293-.22a.5.5 0 01.586 0l.293.22a.5.5 0 01.177.383V9a1 1 0 001 1h1.586L9 13.586z"/></svg>
                             </button>
                         </div>
@@ -133,12 +137,10 @@
                         <p class="text-[0.65rem] text-indigo-400 font-semibold uppercase">{{ role if role is defined else '' }}</p>
                     </div>
                 </div>
+                <a href="{{ cdi_dashboard_url }}" class="block w-full text-center text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg px-3 py-2 transition-colors shadow-sm border border-indigo-500/30" rel="noopener noreferrer">
+                    Back to CDI dashboard
+                </a>
                 <div class="flex gap-2">
-                    {% if is_admin is defined and is_admin %}
-                    <a href="{{ url_for('users_page') }}" class="flex-1 text-center text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800/50 hover:bg-slate-800 rounded-lg px-3 py-1.5 transition-colors">
-                        Users
-                    </a>
-                    {% endif %}
                     <a href="{{ url_for('settings') }}" class="flex-1 text-center text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800/50 hover:bg-slate-800 rounded-lg px-3 py-1.5 transition-colors">
                         Settings
                     </a>
@@ -149,16 +151,21 @@
             </div>
         </aside>
 
-        <!-- Main Content (always offset by sidebar width) -->
-        <main class="flex-1 min-h-screen ml-64">
+        <!-- Main Content -->
+        <main class="flex-1 min-h-screen ml-0 md:ml-64">
             <!-- Top bar -->
             <header class="sticky top-0 z-10 bg-slate-850/95 backdrop-blur-lg border-b border-slate-800">
-                <div class="flex items-center justify-between px-4 sm:px-6 py-3">
-                    <nav class="flex items-center gap-2 text-sm min-w-0">
+                <div class="flex items-center justify-between px-4 sm:px-6 py-3 gap-2">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <button type="button" id="sidebar-toggle" onclick="toggleSidebar()" class="sidebar-menu-btn md:hidden flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors shrink-0" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        </button>
+                        <nav class="flex items-center gap-2 text-sm min-w-0">
                         <a href="{{ url_for('dashboard') }}" class="text-slate-400 hover:text-slate-200 transition-colors truncate">Dashboard</a>
                         {% block breadcrumb %}{% endblock %}
-                    </nav>
-                    <div class="flex items-center gap-3">
+                        </nav>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
                         <span class="hidden sm:inline-block px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide rounded-md bg-indigo-500/15 text-indigo-400">{{ role if role is defined else '' }}</span>
                         <div class="flex items-center gap-2">
                             <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-400 flex items-center justify-center text-[0.65rem] font-bold text-white">
@@ -170,7 +177,7 @@
                 </div>
             </header>
 
-            <div class="px-6 py-5 max-w-[1400px] mx-auto">
+            <div class="px-4 sm:px-6 py-5 max-w-[1400px] mx-auto">
                 <!-- Flash messages -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -190,6 +197,55 @@
     </div>
 
     <script>
+        function isMobileViewport() {
+            return window.matchMedia('(max-width: 767px)').matches;
+        }
+
+        function openSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            const toggle = document.getElementById('sidebar-toggle');
+            sidebar.classList.remove('-translate-x-full');
+            sidebar.classList.add('translate-x-0');
+            backdrop.classList.remove('hidden');
+            document.body.classList.add('sidebar-open');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'true');
+                toggle.setAttribute('aria-label', 'Close menu');
+            }
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            const toggle = document.getElementById('sidebar-toggle');
+            sidebar.classList.add('-translate-x-full');
+            sidebar.classList.remove('translate-x-0');
+            backdrop.classList.add('hidden');
+            document.body.classList.remove('sidebar-open');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'false');
+                toggle.setAttribute('aria-label', 'Open menu');
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                openSidebar();
+            } else if (isMobileViewport()) {
+                closeSidebar();
+            }
+        }
+
+        document.getElementById('sidebar-backdrop').addEventListener('click', closeSidebar);
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeSidebar();
+        });
+        window.addEventListener('resize', function() {
+            if (!isMobileViewport()) closeSidebar();
+        });
+
         function toggleDataSource() {
             const panel = document.getElementById('data-source-panel');
             const chev = document.getElementById('ds-chevron');
@@ -212,7 +268,7 @@
             status.classList.remove('hidden');
             status.textContent = 'Loading...';
             try {
-                const res = await fetch('/api/connect', {
+                const res = await fetch(BASE + '/api/connect', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({sheet_url: sheetUrl, credentials_path: credsPath})
@@ -235,15 +291,16 @@
         }
 
         async function selectEvent(name) {
-            await fetch('/api/select', {
+            if (isMobileViewport()) closeSidebar();
+            await fetch(BASE + '/api/select', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ event: name }),
             });
-            window.location.href = '/';
+            window.location.href = BASE + '/';
         }
         async function pinEvent(name) {
-            await fetch('/api/pin', {
+            await fetch(BASE + '/api/pin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ event: name, action: 'pin' }),
@@ -251,7 +308,7 @@
             location.reload();
         }
         async function unpinEvent(name) {
-            await fetch('/api/pin', {
+            await fetch(BASE + '/api/pin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ event: name, action: 'unpin' }),

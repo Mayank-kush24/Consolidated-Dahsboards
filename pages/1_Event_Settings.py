@@ -2,6 +2,8 @@
 Event settings: list all events and configure dedicated dashboard link and admin credentials per event.
 """
 
+from pathlib import Path
+
 import streamlit as st
 from config_helpers import (
     DEFAULT_CREDENTIALS_PATH,
@@ -13,7 +15,9 @@ from config_helpers import (
 from sheets_connector import load_sheet_data
 from utils import extract_sheet_id
 
-st.set_page_config(page_title="Event Settings", page_icon="⚙️", layout="wide")
+_FAVICON = Path(__file__).resolve().parent.parent / "static" / "favicon.png"
+_PAGE_ICON = str(_FAVICON) if _FAVICON.is_file() else "⚙️"
+st.set_page_config(page_title="Event Settings", page_icon=_PAGE_ICON, layout="wide")
 
 if not st.session_state.get("authenticated", False):
     st.switch_page("app.py")
@@ -46,6 +50,21 @@ st.markdown("""
         margin: 1rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #334155;
     }
     .section-header h2 { margin: 0; font-size: 1.3rem; font-weight: 700; color: #e2e8f0; }
+    @media (max-width: 768px) {
+        .main .block-container { padding: 0.75rem 1rem 2rem; }
+        div[data-testid="column"] {
+            width: 100% !important;
+            min-width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+        .settings-card { padding: 1rem; }
+        .settings-field {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.2rem;
+        }
+        .settings-field .field-label { min-width: 0; }
+    }
 </style>
 """, unsafe_allow_html=True)
 

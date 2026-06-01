@@ -32,9 +32,9 @@
 <!-- Dashboard content -->
 <div id="dashboard-content" class="{{ '' if selected else 'hidden' }}">
     <!-- Event Header -->
-    <div class="flex items-center justify-between mb-5">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
         <h2 id="event-title" class="text-lg font-bold text-slate-100">{{ selected }}</h2>
-        <a id="dashboard-link" href="#" target="_blank" class="dash-link hidden">
+        <a id="dashboard-link" href="#" target="_blank" class="dash-link hidden self-start sm:self-auto">
             Open dashboard
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         </a>
@@ -99,7 +99,7 @@
             <svg id="creds-chevron" class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
         <div id="credentials-panel" class="hidden bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[0.68rem] font-semibold text-slate-500 mb-1 uppercase tracking-wider">Username</label>
                     <div id="cred-username" class="text-sm text-slate-300 font-mono bg-slate-850 rounded-lg px-3 py-2 border border-slate-700">—</div>
@@ -115,8 +115,16 @@
     <!-- Registration Trend -->
     <div class="mb-6">
         <div class="sec-label">Registration Trend</div>
-        <div class="chart-card">
-            <div id="chart-daily" class="w-full" style="height: 400px;"></div>
+        <div class="chart-card" data-chart-section="daily">
+            <div class="chart-card-header flex items-center justify-between gap-2 mb-3">
+                <h4 class="text-sm font-semibold text-slate-300 px-1">Daily Registrations</h4>
+                <div class="view-toggle" data-chart="daily">
+                    <button type="button" class="view-btn active" data-view="chart">Chart</button>
+                    <button type="button" class="view-btn" data-view="table">Table</button>
+                </div>
+            </div>
+            <div id="chart-daily" class="chart-view w-full" style="height: 400px;"></div>
+            <div id="table-daily" class="table-view hidden"></div>
             <div id="daily-empty" class="empty-state hidden">
                 <p class="text-sm text-slate-500">No daily registration data for this event.</p>
             </div>
@@ -127,7 +135,7 @@
     <!-- Breakdown Tabs -->
     <div class="sec-label">Breakdown</div>
     <div class="mb-6">
-        <div class="flex border-b border-slate-700 mb-4">
+        <div class="tabs-scroll flex border-b border-slate-700 mb-4">
             <button onclick="switchTab('demographics')" id="tab-demographics" class="tab-btn tab-active">Demographics</button>
             <button onclick="switchTab('geography')" id="tab-geography" class="tab-btn">Geography</button>
             <button onclick="switchTab('citystat')" id="tab-citystat" class="tab-btn hidden">City Choice</button>
@@ -136,16 +144,30 @@
         <!-- Demographics -->
         <div id="panel-demographics">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="chart-card">
-                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">Gender</h4>
-                    <div id="chart-gender" class="w-full" style="height: 320px;"></div>
+                <div class="chart-card" data-chart-section="gender">
+                    <div class="chart-card-header flex items-center justify-between gap-2 mb-3">
+                        <h4 class="text-sm font-semibold text-slate-300 px-1">Gender</h4>
+                        <div class="view-toggle" data-chart="gender">
+                            <button type="button" class="view-btn active" data-view="chart">Chart</button>
+                            <button type="button" class="view-btn" data-view="table">Table</button>
+                        </div>
+                    </div>
+                    <div id="chart-gender" class="chart-view w-full" style="height: 320px;"></div>
+                    <div id="table-gender" class="table-view hidden"></div>
                     <div id="gender-empty" class="empty-state hidden">
                         <p class="text-sm text-slate-500">No data</p>
                     </div>
                 </div>
-                <div class="chart-card">
-                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">Occupation</h4>
-                    <div id="chart-occupation" class="w-full" style="height: 320px;"></div>
+                <div class="chart-card" data-chart-section="occupation">
+                    <div class="chart-card-header flex items-center justify-between gap-2 mb-3">
+                        <h4 class="text-sm font-semibold text-slate-300 px-1">Occupation</h4>
+                        <div class="view-toggle" data-chart="occupation">
+                            <button type="button" class="view-btn active" data-view="chart">Chart</button>
+                            <button type="button" class="view-btn" data-view="table">Table</button>
+                        </div>
+                    </div>
+                    <div id="chart-occupation" class="chart-view w-full" style="height: 320px;"></div>
+                    <div id="table-occupation" class="table-view hidden"></div>
                     <div id="occupation-empty" class="empty-state hidden">
                         <p class="text-sm text-slate-500">No data</p>
                     </div>
@@ -156,24 +178,45 @@
         <!-- Geography -->
         <div id="panel-geography" class="hidden">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div class="chart-card">
-                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">Country</h4>
-                    <div id="chart-country" class="w-full" style="height: 380px;"></div>
+                <div class="chart-card" data-chart-section="country">
+                    <div class="chart-card-header flex items-center justify-between gap-2 mb-3">
+                        <h4 class="text-sm font-semibold text-slate-300 px-1">Country</h4>
+                        <div class="view-toggle" data-chart="country">
+                            <button type="button" class="view-btn active" data-view="chart">Chart</button>
+                            <button type="button" class="view-btn" data-view="table">Table</button>
+                        </div>
+                    </div>
+                    <div id="chart-country" class="chart-view w-full" style="height: 380px;"></div>
+                    <div id="table-country" class="table-view hidden"></div>
                     <div id="country-empty" class="empty-state hidden">
                         <p class="text-sm text-slate-500">No data</p>
                     </div>
                 </div>
-                <div class="chart-card">
-                    <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">State</h4>
-                    <div id="chart-state" class="w-full" style="height: 380px;"></div>
+                <div class="chart-card" data-chart-section="state">
+                    <div class="chart-card-header flex items-center justify-between gap-2 mb-3">
+                        <h4 class="text-sm font-semibold text-slate-300 px-1">State</h4>
+                        <div class="view-toggle" data-chart="state">
+                            <button type="button" class="view-btn active" data-view="chart">Chart</button>
+                            <button type="button" class="view-btn" data-view="table">Table</button>
+                        </div>
+                    </div>
+                    <div id="chart-state" class="chart-view w-full" style="height: 380px;"></div>
+                    <div id="table-state" class="table-view hidden"></div>
                     <div id="state-empty" class="empty-state hidden">
                         <p class="text-sm text-slate-500">No data</p>
                     </div>
                 </div>
             </div>
-            <div class="chart-card">
-                <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">City</h4>
-                <div id="chart-city" class="w-full" style="height: 420px;"></div>
+            <div class="chart-card" data-chart-section="city">
+                <div class="chart-card-header flex items-center justify-between gap-2 mb-3">
+                    <h4 class="text-sm font-semibold text-slate-300 px-1">City</h4>
+                    <div class="view-toggle" data-chart="city">
+                        <button type="button" class="view-btn active" data-view="chart">Chart</button>
+                        <button type="button" class="view-btn" data-view="table">Table</button>
+                    </div>
+                </div>
+                <div id="chart-city" class="chart-view w-full" style="height: 420px;"></div>
+                <div id="table-city" class="table-view hidden"></div>
                 <div id="city-empty" class="empty-state hidden">
                     <p class="text-sm text-slate-500">No data</p>
                 </div>
@@ -182,9 +225,16 @@
 
         <!-- City Choice -->
         <div id="panel-citystat" class="hidden">
-            <div class="chart-card">
-                <h4 class="text-sm font-semibold text-slate-300 mb-3 px-1">City Choice</h4>
-                <div id="chart-citystat" class="w-full" style="height: 420px;"></div>
+            <div class="chart-card" data-chart-section="citystat">
+                <div class="chart-card-header flex items-center justify-between gap-2 mb-3">
+                    <h4 class="text-sm font-semibold text-slate-300 px-1">City Choice</h4>
+                    <div class="view-toggle" data-chart="citystat">
+                        <button type="button" class="view-btn active" data-view="chart">Chart</button>
+                        <button type="button" class="view-btn" data-view="table">Table</button>
+                    </div>
+                </div>
+                <div id="chart-citystat" class="chart-view w-full" style="height: 420px;"></div>
+                <div id="table-citystat" class="table-view hidden"></div>
                 <div id="citystat-empty" class="empty-state hidden">
                     <p class="text-sm text-slate-500">No city choice data for this event.</p>
                 </div>

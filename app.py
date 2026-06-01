@@ -3,10 +3,22 @@ Hackathon / Event Analytics Dashboard
 Connects to Google Sheets and visualizes event statistics with Plotly.
 """
 
+import subprocess
+import sys
+
+# `python app.py` must run under Streamlit; bare Python triggers ScriptRunContext warnings.
+# When started via `streamlit run app.py`, Streamlit is already in sys.modules — skip re-exec.
+if __name__ == "__main__" and "streamlit" not in sys.modules:
+    raise SystemExit(
+        subprocess.call([sys.executable, "-m", "streamlit", "run", __file__, *sys.argv[1:]])
+    )
+
+import html
 import json
 import logging
 import os
 import sys
+from pathlib import Path
 from datetime import date, timedelta
 import streamlit as st
 import pandas as pd
@@ -105,7 +117,9 @@ def _find_column(df: pd.DataFrame, *keywords: str):
 # ---------------------------------------------------------------------------
 # Page config
 # ---------------------------------------------------------------------------
-st.set_page_config(page_title="Event Analytics", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
+_FAVICON = Path(__file__).resolve().parent / "static" / "favicon.png"
+_PAGE_ICON = str(_FAVICON) if _FAVICON.is_file() else "📊"
+st.set_page_config(page_title="Event Analytics", page_icon=_PAGE_ICON, layout="wide", initial_sidebar_state="expanded")
 
 # ---------------------------------------------------------------------------
 # Global CSS
@@ -138,7 +152,7 @@ section[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
     padding: 0.7rem 0; margin-bottom: 1.25rem;
     border-bottom: 1px solid #1e293b;
 }
-.topbar-left { display: flex; align-items: center; gap: 0.75rem; }
+.topbar-left { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; min-width: 0; }
 .topbar-logo {
     width: 32px; height: 32px; border-radius: 8px;
     background: linear-gradient(135deg, #6366f1, #818cf8);
@@ -216,6 +230,19 @@ div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapp
     background: #1e293b !important;
     border: 1px solid #334155 !important;
     border-radius: 12px !important;
+}
+
+/* --- Mobile responsive --- */
+@media (max-width: 768px) {
+    .main .block-container { padding: 0.75rem 1rem 2rem; }
+    div[data-testid="column"] {
+        width: 100% !important;
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    .topbar { flex-wrap: wrap; gap: 0.5rem; }
+    .topbar-right { flex-wrap: wrap; }
+    .kpi-value { font-size: 1.35rem; }
 }
 
 /* --- Login --- */
@@ -304,6 +331,65 @@ div[data-testid="stAlert"] { border-radius: 10px !important; border: none !impor
 .settings-card h3 { margin: 0 0 0.6rem 0; font-size: 0.95rem; font-weight: 600; color: #e2e8f0; }
 .sf { display: flex; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.8rem; color: #94a3b8; }
 .sf .sl { font-weight: 500; color: #cbd5e1; min-width: 80px; }
+
+/* --- CDI “Back” pill (scoped; whole control is the <a>) --- */
+.cdi-nav-pill-wrap {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+}
+a.cdi-nav-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0.5rem 1.15rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #0f2744 !important;
+    text-decoration: none !important;
+    background: #e8eefc;
+    border: 1px solid #c5d4f0;
+    border-radius: 9999px;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    flex-wrap: wrap;
+    row-gap: 0.15rem;
+}
+a.cdi-nav-pill:hover {
+    background: #eef3ff;
+    border-color: #b6c8ec;
+    box-shadow: 0 1px 3px rgba(15, 39, 68, 0.07);
+}
+.cdi-nav-pill-icon {
+    flex-shrink: 0;
+    font-size: 1.05rem;
+    line-height: 1;
+    color: #1e3a5f;
+}
+.cdi-nav-pill-label {
+    min-width: 0;
+    color: #1e3a5f;
+    text-align: center;
+    word-break: break-word;
+    hyphens: auto;
+}
+@media (max-width: 480px) {
+    a.cdi-nav-pill { padding: 0.45rem 0.85rem; font-size: 0.78rem; }
+    .cdi-nav-pill-label {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        white-space: normal;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -385,13 +471,54 @@ def empty(icon: str, msg: str):
     st.markdown(f'<div class="empty-state"><span class="empty-icon">{icon}</span><p class="empty-msg">{msg}</p></div>', unsafe_allow_html=True)
 
 
-def topbar(user: str, role: str, event_name: str = ""):
+# CDI portal navigation: HTML pill uses query param; next run calls st.switch_page (see pages/cdi_dashboard.py).
+CDI_NAV_QUERY_KEY = "__cdi_nav"
+CDI_NAV_TARGET_PAGE = "pages/cdi_dashboard.py"
+
+
+def _consume_cdi_nav_query_and_maybe_switch() -> None:
+    """If the pill link set the CDI nav query flag, clear it and switch to the CDI Streamlit page."""
+    if st.query_params.get(CDI_NAV_QUERY_KEY) != "1":
+        return
+    try:
+        del st.query_params[CDI_NAV_QUERY_KEY]
+    except Exception:
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+    try:
+        st.switch_page(CDI_NAV_TARGET_PAGE)
+    except Exception as exc:
+        st.error(f"Could not open CDI page ({CDI_NAV_TARGET_PAGE}). Edit CDI_NAV_TARGET_PAGE or add that file. ({exc})")
+        st.stop()
+
+
+def topbar(
+    user: str,
+    role: str,
+    event_name: str = "",
+    *,
+    show_cdi_nav: bool = False,
+    cdi_nav_label: str = "Back to CDI dashboard",
+):
     initial = user[0].upper() if user else "?"
     event_part = f'<span style="color:#64748b;margin:0 0.4rem">·</span><span style="color:#94a3b8;font-weight:500">{event_name}</span>' if event_name else ""
+    cdi_pill = ""
+    if show_cdi_nav:
+        safe_lbl = html.escape(cdi_nav_label)
+        cdi_pill = (
+            f'<div class="cdi-nav-pill-wrap">'
+            f'<a class="cdi-nav-pill" href="?{CDI_NAV_QUERY_KEY}=1" title="{safe_lbl}">'
+            f'<span class="cdi-nav-pill-icon" aria-hidden="true">←</span>'
+            f'<span class="cdi-nav-pill-label">{safe_lbl}</span>'
+            f"</a></div>"
+        )
     st.markdown(
         f'<div class="topbar">'
         f'<div class="topbar-left">'
         f'<div class="topbar-logo">📊</div>'
+        f"{cdi_pill}"
         f'<span class="topbar-title">Event Analytics</span>{event_part}'
         f'</div>'
         f'<div class="topbar-right">'
@@ -435,6 +562,46 @@ def progress_bar(current, target, label="Registration Progress"):
 
 def sec_label(text: str):
     st.markdown(f'<div class="sec-label">{text}</div>', unsafe_allow_html=True)
+
+
+def distribution_to_table_df(items) -> pd.DataFrame:
+    """Build Label / Count / Share % table from a dict or list of (label, value) pairs."""
+    if isinstance(items, dict):
+        rows = [{"Label": normalize_chart_label(k), "Count": int(v)} for k, v in items.items()]
+    else:
+        rows = [{"Label": normalize_chart_label(k), "Count": int(v)} for k, v in items]
+    if not rows:
+        return pd.DataFrame()
+    df_out = pd.DataFrame(rows).sort_values("Count", ascending=False).reset_index(drop=True)
+    total = df_out["Count"].sum()
+    df_out["Share %"] = (df_out["Count"] / total * 100).round(1) if total else 0.0
+    return df_out
+
+
+def daily_to_table_df(dates, counts, cumulative) -> pd.DataFrame:
+    return pd.DataFrame({"Date": dates, "Daily": counts, "Cumulative": cumulative})
+
+
+def chart_table_section(key: str, title: str, table_df: pd.DataFrame, chart_fn) -> None:
+    """Render a chart section with Chart / Table toggle."""
+    st.markdown(f"**{title}**")
+    view = st.radio(
+        "View",
+        ["Chart", "Table"],
+        horizontal=True,
+        key=f"view_{key}",
+        label_visibility="collapsed",
+    )
+    if view == "Chart":
+        chart_fn()
+    else:
+        col_config = {}
+        for col in table_df.columns:
+            if col in ("Count", "Daily", "Cumulative"):
+                col_config[col] = st.column_config.NumberColumn(format="%d")
+            elif col == "Share %":
+                col_config[col] = st.column_config.NumberColumn(format="%.1f")
+        st.dataframe(table_df, use_container_width=True, hide_index=True, column_config=col_config)
 
 
 # ---------------------------------------------------------------------------
@@ -624,6 +791,8 @@ def render_login_page():
 # Main Dashboard
 # ---------------------------------------------------------------------------
 def main():
+    _consume_cdi_nav_query_and_maybe_switch()
+
     if st.session_state.get("current_page") == "event_settings":
         render_event_settings_page()
         return
@@ -753,7 +922,7 @@ def main():
 
     # ── Main content ─────────────────────────────────────────────────────
     selected_name = selected_initiatives[0] if selected_initiatives else ""
-    topbar(user, role, selected_name)
+    topbar(user, role, selected_name, show_cdi_nav=True)
 
     if df is None:
         empty("🔗", "Connect to a Google Sheet from the sidebar to get started.")
@@ -909,7 +1078,13 @@ def main():
                                   annotation_text=f"Target: {rtarget:,}", annotation_position="top right",
                                   annotation_font=dict(size=10, color=C["muted"]),
                                   annotation_bgcolor="rgba(15,23,42,0.85)", yref="y2")
-                st.plotly_chart(fig, use_container_width=True)
+
+                daily_df = daily_to_table_df(dates, counts, cum)
+
+                def render_daily_chart():
+                    st.plotly_chart(fig, use_container_width=True)
+
+                chart_table_section("daily", "Daily Registrations", daily_df, render_daily_chart)
 
                 if req_avg is not None and tsf_used is not None and dr_used is not None:
                     if dr_used > 0:
@@ -933,34 +1108,42 @@ def main():
         d1, d2 = st.columns(2)
         with d1:
             with st.container(border=True):
-                st.markdown("**Gender**")
                 if COL_GENDER in filtered_df.columns:
                     merged = merge_json_dicts([safe_json_loads(v) for v in filtered_df[COL_GENDER]])
                     if merged:
-                        fig_g = px.pie(values=list(merged.values()),
-                                       names=[normalize_chart_label(k) for k in merged],
-                                       hole=0.5, color_discrete_sequence=["#818cf8", "#f472b6", "#34d399", "#fbbf24", "#fb923c"])
-                        fig_g.update_layout(**plotly_layout(), height=320, showlegend=True,
-                                            legend=dict(font=dict(size=11, color=C["text2"])))
-                        fig_g.update_traces(textfont_color="#fff", hovertemplate="<b>%{label}</b><br>%{value:,} (%{percent})<extra></extra>")
-                        st.plotly_chart(fig_g, use_container_width=True)
+                        gender_df = distribution_to_table_df(merged)
+
+                        def render_gender_chart():
+                            fig_g = px.pie(values=list(merged.values()),
+                                           names=[normalize_chart_label(k) for k in merged],
+                                           hole=0.5, color_discrete_sequence=["#818cf8", "#f472b6", "#34d399", "#fbbf24", "#fb923c"])
+                            fig_g.update_layout(**plotly_layout(), height=320, showlegend=True,
+                                                legend=dict(font=dict(size=11, color=C["text2"])))
+                            fig_g.update_traces(textfont_color="#fff", hovertemplate="<b>%{label}</b><br>%{value:,} (%{percent})<extra></extra>")
+                            st.plotly_chart(fig_g, use_container_width=True)
+
+                        chart_table_section("gender", "Gender", gender_df, render_gender_chart)
                     else:
                         empty("⚧", "No data")
                 else:
                     empty("⚧", "Column not found")
         with d2:
             with st.container(border=True):
-                st.markdown("**Occupation**")
                 if COL_OCCUPATION in filtered_df.columns:
                     merged = merge_json_dicts([safe_json_loads(v) for v in filtered_df[COL_OCCUPATION]])
                     if merged:
-                        fig_o = px.pie(values=list(merged.values()),
-                                       names=[normalize_chart_label(k) for k in merged],
-                                       hole=0.5, color_discrete_sequence=["#38bdf8", "#a78bfa", "#fb923c", "#4ade80", "#f87171", "#facc15"])
-                        fig_o.update_layout(**plotly_layout(), height=320, showlegend=True,
-                                            legend=dict(font=dict(size=11, color=C["text2"])))
-                        fig_o.update_traces(textfont_color="#fff", hovertemplate="<b>%{label}</b><br>%{value:,} (%{percent})<extra></extra>")
-                        st.plotly_chart(fig_o, use_container_width=True)
+                        occ_df = distribution_to_table_df(merged)
+
+                        def render_occupation_chart():
+                            fig_o = px.pie(values=list(merged.values()),
+                                           names=[normalize_chart_label(k) for k in merged],
+                                           hole=0.5, color_discrete_sequence=["#38bdf8", "#a78bfa", "#fb923c", "#4ade80", "#f87171", "#facc15"])
+                            fig_o.update_layout(**plotly_layout(), height=320, showlegend=True,
+                                                legend=dict(font=dict(size=11, color=C["text2"])))
+                            fig_o.update_traces(textfont_color="#fff", hovertemplate="<b>%{label}</b><br>%{value:,} (%{percent})<extra></extra>")
+                            st.plotly_chart(fig_o, use_container_width=True)
+
+                        chart_table_section("occupation", "Occupation", occ_df, render_occupation_chart)
                     else:
                         empty("💼", "No data")
                 else:
@@ -970,54 +1153,66 @@ def main():
         g1, g2 = st.columns(2)
         with g1:
             with st.container(border=True):
-                st.markdown("**Country**")
                 if COL_COUNTRY in filtered_df.columns:
                     merged = merge_json_dicts([safe_json_loads(v) for v in filtered_df[COL_COUNTRY]])
                     if merged:
                         items = sorted(merged.items(), key=lambda x: -x[1])[:12]
-                        fig_c = go.Figure(go.Bar(x=[v for _, v in items], y=[normalize_chart_label(k) for k, _ in items],
-                                                  orientation="h", marker=dict(color=[v for _, v in items],
-                                                  colorscale=[[0, "#1e3a5f"], [1, "#818cf8"]], line_width=0, cornerradius=3),
-                                                  hovertemplate="<b>%{y}</b><br>%{x:,}<extra></extra>"))
-                        fig_c.update_layout(**plotly_layout(yaxis=dict(autorange="reversed")),
-                                            height=380, showlegend=False)
-                        st.plotly_chart(fig_c, use_container_width=True)
+                        country_df = distribution_to_table_df(items)
+
+                        def render_country_chart():
+                            fig_c = go.Figure(go.Bar(x=[v for _, v in items], y=[normalize_chart_label(k) for k, _ in items],
+                                                      orientation="h", marker=dict(color=[v for _, v in items],
+                                                      colorscale=[[0, "#1e3a5f"], [1, "#818cf8"]], line_width=0, cornerradius=3),
+                                                      hovertemplate="<b>%{y}</b><br>%{x:,}<extra></extra>"))
+                            fig_c.update_layout(**plotly_layout(yaxis=dict(autorange="reversed")),
+                                                height=380, showlegend=False)
+                            st.plotly_chart(fig_c, use_container_width=True)
+
+                        chart_table_section("country", "Country", country_df, render_country_chart)
                     else:
                         empty("🏳️", "No data")
                 else:
                     empty("🏳️", "Column not found")
         with g2:
             with st.container(border=True):
-                st.markdown("**State**")
                 if COL_STATE in filtered_df.columns:
                     merged = merge_json_dicts([safe_json_loads(v) for v in filtered_df[COL_STATE]])
                     if merged:
                         items = sorted(merged.items(), key=lambda x: -x[1])[:12]
-                        fig_s = go.Figure(go.Bar(x=[v for _, v in items], y=[normalize_chart_label(k) for k, _ in items],
-                                                  orientation="h", marker=dict(color=[v for _, v in items],
-                                                  colorscale=[[0, "#134e4a"], [1, "#34d399"]], line_width=0, cornerradius=3),
-                                                  hovertemplate="<b>%{y}</b><br>%{x:,}<extra></extra>"))
-                        fig_s.update_layout(**plotly_layout(yaxis=dict(autorange="reversed")),
-                                            height=380, showlegend=False)
-                        st.plotly_chart(fig_s, use_container_width=True)
+                        state_df = distribution_to_table_df(items)
+
+                        def render_state_chart():
+                            fig_s = go.Figure(go.Bar(x=[v for _, v in items], y=[normalize_chart_label(k) for k, _ in items],
+                                                      orientation="h", marker=dict(color=[v for _, v in items],
+                                                      colorscale=[[0, "#134e4a"], [1, "#34d399"]], line_width=0, cornerradius=3),
+                                                      hovertemplate="<b>%{y}</b><br>%{x:,}<extra></extra>"))
+                            fig_s.update_layout(**plotly_layout(yaxis=dict(autorange="reversed")),
+                                                height=380, showlegend=False)
+                            st.plotly_chart(fig_s, use_container_width=True)
+
+                        chart_table_section("state", "State", state_df, render_state_chart)
                     else:
                         empty("📍", "No data")
                 else:
                     empty("📍", "Column not found")
 
         with st.container(border=True):
-            st.markdown("**City**")
             if COL_CITY in filtered_df.columns:
                 merged = merge_json_dicts([safe_json_loads(v) for v in filtered_df[COL_CITY]])
                 if merged:
                     items = sorted(merged.items(), key=lambda x: -x[1])[:15]
-                    fig_ci = go.Figure(go.Bar(x=[v for _, v in items], y=[normalize_chart_label(k) for k, _ in items],
-                                              orientation="h", marker=dict(color=[v for _, v in items],
-                                              colorscale=[[0, "#312e81"], [1, "#a78bfa"]], line_width=0, cornerradius=3),
-                                              hovertemplate="<b>%{y}</b><br>%{x:,}<extra></extra>"))
-                    fig_ci.update_layout(**plotly_layout(yaxis=dict(autorange="reversed")),
-                                         height=420, showlegend=False)
-                    st.plotly_chart(fig_ci, use_container_width=True)
+                    city_df = distribution_to_table_df(items)
+
+                    def render_city_chart():
+                        fig_ci = go.Figure(go.Bar(x=[v for _, v in items], y=[normalize_chart_label(k) for k, _ in items],
+                                                  orientation="h", marker=dict(color=[v for _, v in items],
+                                                  colorscale=[[0, "#312e81"], [1, "#a78bfa"]], line_width=0, cornerradius=3),
+                                                  hovertemplate="<b>%{y}</b><br>%{x:,}<extra></extra>"))
+                        fig_ci.update_layout(**plotly_layout(yaxis=dict(autorange="reversed")),
+                                             height=420, showlegend=False)
+                        st.plotly_chart(fig_ci, use_container_width=True)
+
+                    chart_table_section("city", "City", city_df, render_city_chart)
                 else:
                     empty("🏙️", "No data")
             else:

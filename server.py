@@ -7,29 +7,30 @@ import json
 import logging
 import os
 import sys
-from datetime import timedelta
-from functools import wraps
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from flask import (
     Flask,
     flash,
+    g,
     jsonify,
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     url_for,
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-from auth import (
-    verify_login,
-    can_edit_sheet,
-    has_permission,
-    get_all_users,
-    get_user_allowed_events,
-    create_user,
-    update_user,
-    delete_user,
+from h2s_cdi_auth import (
+    get_module_event_allowlist,
+    get_portal_dashboard_url,
+    get_portal_url,
+    register_h2s_cdi_auth,
+    register_with_portal,
 )
 from config_helpers import (
     DEFAULT_CREDENTIALS_PATH,
@@ -55,21 +56,71 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "event-dashboard-secret-key-change-in-prod")
-app.permanent_session_lifetime = timedelta(weeks=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+APPLICATION_ROOT = (os.environ.get("APPLICATION_ROOT") or "").strip().rstrip("/")
 
 PINNED_FILE = "pinned_initiatives.json"
+
+MODULE_PAGES = [
+    {"pageId": "dashboard", "label": "Dashboard",       "path": "/dashboard"},
+    {"pageId": "settings",  "label": "Settings",        "path": "/settings"},
+]
+
+
+# ---------------------------------------------------------------------------
+# Middleware: inject SCRIPT_NAME so url_for() generates correct prefixed URLs
+# ---------------------------------------------------------------------------
+@app.before_request
+def _set_script_name():
+    prefix = request.environ.get("HTTP_X_FORWARDED_PREFIX", "").strip().rstrip("/")
+    if prefix and not prefix.startswith("/"):
+        prefix = "/" + prefix
+    if not prefix and APPLICATION_ROOT:
+        prefix = APPLICATION_ROOT
+    if prefix:
+        request.environ["SCRIPT_NAME"] = prefix
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """Serve PNG favicon at /favicon.ico for browsers that request the legacy path."""
+    return send_from_directory(app.static_folder, "favicon.png", mimetype="image/png")
+
+
+register_h2s_cdi_auth(
+    app,
+    public_paths=("/static", "/favicon.ico", "/login", "/logout", "/api/internal/live-events"),
+    path_page_rules=[
+        ("/dashboard", "dashboard"),
+        ("/settings", "settings"),
+        ("/", "dashboard"),
+    ],
+    default_page=None,
+)
+
+
+@app.context_processor
+def _inject_globals():
+    """Expose script_root, portal URLs, and CDI dashboard link to every template."""
+    script_root = (request.environ.get("SCRIPT_NAME") or "").rstrip("/")
+    return {
+        "script_root": script_root,
+        "portal_url": get_portal_url(),
+        "cdi_dashboard_url": get_portal_dashboard_url(),
+    }
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def login_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get("authenticated"):
-            return redirect(url_for("login"))
-        return f(*args, **kwargs)
-    return decorated
+def _user_info():
+    """Return (display_name, role_str, is_admin) from the portal JWT payload."""
+    user = getattr(g, "user", None) or {}
+    name = user.get("name") or user.get("email", "")
+    is_admin = user.get("isAdmin", False)
+    role = "admin" if is_admin else "viewer"
+    return name, role, is_admin
 
 
 def _load_pinned():
@@ -91,18 +142,6 @@ def _save_pinned(pinned_list):
         logger.warning("Could not save pinned initiatives: %s", e)
 
 
-def admin_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get("authenticated"):
-            return redirect(url_for("login"))
-        if not has_permission(session.get("role", ""), "manage_users"):
-            flash("Permission denied.", "error")
-            return redirect(url_for("dashboard"))
-        return f(*args, **kwargs)
-    return decorated
-
-
 def _get_df():
     """Load the dataframe using current session sheet settings or defaults."""
     sheet_url = session.get("sheet_url", DEFAULT_SHEET_URL)
@@ -113,61 +152,73 @@ def _get_df():
     return cached_load_sheet(sheet_id, creds_path)
 
 
-def _filter_events_for_user(events):
-    """Filter the event list based on the logged-in user's allowed_events."""
-    user = session.get("user", "")
-    allowed = get_user_allowed_events(user)
-    if not allowed:
+def _get_df_catalog():
+    """
+    Load the sheet used for initiative names (portal RBAC picker). No browser session.
+    Override with EVENT_DASHBOARD_CATALOG_SHEET_URL / EVENT_DASHBOARD_CREDENTIALS_PATH if set.
+    """
+    sheet_url = (
+        (os.environ.get("EVENT_DASHBOARD_CATALOG_SHEET_URL") or "").strip()
+        or (os.environ.get("DEFAULT_SHEET_URL") or "").strip()
+        or DEFAULT_SHEET_URL
+    )
+    creds_path = (
+        (os.environ.get("EVENT_DASHBOARD_CREDENTIALS_PATH") or "").strip()
+        or (os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+        or DEFAULT_CREDENTIALS_PATH
+    )
+    sheet_id = extract_sheet_id(sheet_url)
+    if not sheet_id:
+        return None
+    return cached_load_sheet(sheet_id, creds_path)
+
+
+def _registration_secret_ok() -> bool:
+    want = (
+        (os.environ.get("H2S_CDI_REGISTRATION_SECRET") or "").strip()
+        or (os.environ.get("JARVIS_REGISTRATION_SECRET") or "").strip()
+    )
+    got = (request.headers.get("x-module-secret") or request.headers.get("X-Module-Secret") or "").strip()
+    return bool(want) and got == want
+
+
+def _filter_events_for_user(events, user_payload: dict):
+    """Filter initiatives using CDI JWT moduleEventAccess (configured in portal module permissions)."""
+    allowed = get_module_event_allowlist(user_payload)
+    if allowed is None:
         return events
-    return [e for e in events if e in allowed]
+    if not allowed:
+        return []
+    allow_set = set(allowed)
+    return [e for e in events if e in allow_set]
 
 
 # ---------------------------------------------------------------------------
-# Routes: Auth
+# Routes: Auth (redirects only — portal owns the login page)
 # ---------------------------------------------------------------------------
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login")
 def login():
-    if session.get("authenticated"):
-        return redirect(url_for("dashboard"))
-
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        ok, role = verify_login(username, password)
-        if ok:
-            session.permanent = True
-            session["authenticated"] = True
-            session["user"] = username.lower()
-            session["role"] = role
-            logger.info("User '%s' logged in (role=%s)", username, role)
-            return redirect(url_for("dashboard"))
-        else:
-            flash("Invalid username or password.", "error")
-
-    return render_template("login.html")
+    """Redirect stale /login bookmarks to the portal."""
+    return redirect(f"{get_portal_url()}/login")
 
 
 @app.route("/logout")
 def logout():
-    user = session.get("user", "unknown")
+    """Clear local session state and send the user back to the portal."""
     session.clear()
-    logger.info("User '%s' logged out", user)
-    return redirect(url_for("login"))
+    return redirect(get_portal_dashboard_url())
 
 
 # ---------------------------------------------------------------------------
 # Routes: Dashboard
 # ---------------------------------------------------------------------------
 @app.route("/")
-@login_required
+@app.route("/dashboard")
 def dashboard():
-    user = session.get("user", "")
-    role = session.get("role", "viewer")
-    is_admin = can_edit_sheet(role)
-
+    user, role, is_admin = _user_info()
     df = _get_df()
     all_events = get_event_list(df)
-    events = _filter_events_for_user(all_events)
+    events = _filter_events_for_user(all_events, g.user)
     pinned = _load_pinned()
     pinned = [p for p in pinned if p in events]
 
@@ -196,15 +247,11 @@ def dashboard():
 # Routes: Settings
 # ---------------------------------------------------------------------------
 @app.route("/settings")
-@login_required
 def settings():
-    user = session.get("user", "")
-    role = session.get("role", "viewer")
-    is_admin = can_edit_sheet(role)
-
+    user, role, is_admin = _user_info()
     df = _get_df()
     all_events = get_event_list(df)
-    events = _filter_events_for_user(all_events)
+    events = _filter_events_for_user(all_events, g.user)
     config = load_event_dashboard_config()
     pinned = _load_pinned()
     pinned = [p for p in pinned if p in events]
@@ -227,10 +274,8 @@ def settings():
 
 
 @app.route("/settings/save", methods=["POST"])
-@login_required
 def settings_save():
-    role = session.get("role", "viewer")
-    if not can_edit_sheet(role):
+    if not g.user.get("isAdmin"):
         flash("Permission denied.", "error")
         return redirect(url_for("settings"))
 
@@ -254,8 +299,30 @@ def settings_save():
 # ---------------------------------------------------------------------------
 # API: Data
 # ---------------------------------------------------------------------------
+@app.route("/api/internal/live-events", methods=["GET"])
+def api_internal_live_events():
+    """
+    Server-to-server: full initiative list for CDI Users → Configure access pickers.
+    Secured with the same secret as module registration (x-module-secret header).
+    """
+    if not _registration_secret_ok():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    df = _get_df_catalog()
+    if df is None:
+        return jsonify(
+            {
+                "ok": False,
+                "error": "no_sheet",
+                "message": "Could not load the analytics sheet; set EVENT_DASHBOARD_CATALOG_SHEET_URL or DEFAULT_SHEET_URL and credentials.",
+            }
+        ), 200
+    if df.empty:
+        return jsonify({"ok": True, "events": []}), 200
+    events = get_event_list(df)
+    return jsonify({"ok": True, "events": events})
+
+
 @app.route("/api/data")
-@login_required
 def api_data():
     event = request.args.get("event", "").strip()
     if not event:
@@ -266,7 +333,7 @@ def api_data():
         return jsonify({"error": "No data available"}), 404
 
     all_events = get_event_list(df)
-    events = _filter_events_for_user(all_events)
+    events = _filter_events_for_user(all_events, g.user)
     if event not in events:
         return jsonify({"error": "Event not found"}), 404
 
@@ -275,7 +342,6 @@ def api_data():
 
 
 @app.route("/api/select", methods=["POST"])
-@login_required
 def api_select():
     data = request.get_json(silent=True) or {}
     event = data.get("event", "").strip()
@@ -284,11 +350,10 @@ def api_select():
 
 
 @app.route("/api/pin", methods=["POST"])
-@login_required
 def api_pin():
     data = request.get_json(silent=True) or {}
     event = data.get("event", "").strip()
-    action = data.get("action", "pin")  # "pin" or "unpin"
+    action = data.get("action", "pin")
 
     pinned = _load_pinned()
     if action == "pin" and event not in pinned:
@@ -300,10 +365,8 @@ def api_pin():
 
 
 @app.route("/api/connect", methods=["POST"])
-@login_required
 def api_connect():
-    role = session.get("role", "viewer")
-    if not can_edit_sheet(role):
+    if not g.user.get("isAdmin"):
         return jsonify({"error": "Permission denied"}), 403
 
     data = request.get_json(silent=True) or {}
@@ -325,82 +388,12 @@ def api_connect():
 
 
 # ---------------------------------------------------------------------------
-# Routes: User Management
-# ---------------------------------------------------------------------------
-@app.route("/users")
-@admin_required
-def users_page():
-    user = session.get("user", "")
-    role = session.get("role", "viewer")
-    is_admin = can_edit_sheet(role)
-
-    df = _get_df()
-    all_events = get_event_list(df)
-    events = _filter_events_for_user(all_events)
-    pinned = _load_pinned()
-    pinned = [p for p in pinned if p in events]
-
-    return render_template(
-        "users.html",
-        user=user,
-        role=role,
-        is_admin=is_admin,
-        events=events,
-        pinned=pinned,
-        all_events=all_events,
-    )
-
-
-@app.route("/api/users", methods=["GET"])
-@admin_required
-def api_users_list():
-    return jsonify({"ok": True, "users": get_all_users()})
-
-
-@app.route("/api/users", methods=["POST"])
-@admin_required
-def api_users_create():
-    data = request.get_json(silent=True) or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "")
-    role = data.get("role", "viewer")
-    allowed_events = data.get("allowed_events", [])
-
-    ok, msg = create_user(username, password, role, allowed_events)
-    if not ok:
-        return jsonify({"ok": False, "error": msg}), 400
-    logger.info("Admin '%s' created user '%s' (role=%s)", session.get("user"), username, role)
-    return jsonify({"ok": True, "message": msg})
-
-
-@app.route("/api/users/<username>", methods=["PUT"])
-@admin_required
-def api_users_update(username):
-    data = request.get_json(silent=True) or {}
-    password = data.get("password")
-    role = data.get("role")
-    allowed_events = data.get("allowed_events")
-
-    ok, msg = update_user(username, password=password, role=role, allowed_events=allowed_events)
-    if not ok:
-        return jsonify({"ok": False, "error": msg}), 400
-    logger.info("Admin '%s' updated user '%s'", session.get("user"), username)
-    return jsonify({"ok": True, "message": msg})
-
-
-@app.route("/api/users/<username>", methods=["DELETE"])
-@admin_required
-def api_users_delete(username):
-    requesting_user = session.get("user", "")
-    ok, msg = delete_user(username, requesting_user)
-    if not ok:
-        return jsonify({"ok": False, "error": msg}), 400
-    logger.info("Admin '%s' deleted user '%s'", requesting_user, username)
-    return jsonify({"ok": True, "message": msg})
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3005, debug=True)
+    port = int(os.environ.get("PORT", 3005))
+    module_name = os.environ.get("MODULE_NAME", "Consolidated Event Dashboard")
+    base_url = os.environ.get("BASE_URL", f"http://localhost:{port}")
+    register_with_portal(MODULE_PAGES, module_name=module_name, base_url=base_url)
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=port, debug=debug)

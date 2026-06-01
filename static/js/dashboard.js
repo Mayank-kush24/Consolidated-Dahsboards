@@ -20,6 +20,8 @@ const COLORS = {
     border:  '#334155',
 };
 
+const CHART_KEYS = ['daily', 'gender', 'occupation', 'country', 'state', 'city', 'citystat'];
+
 const PLOTLY_LAYOUT = {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor:  'rgba(0,0,0,0)',
@@ -44,10 +46,57 @@ const PLOTLY_CONFIG = { displayModeBar: false, responsive: true };
 
 // ── State ──
 let currentEvent = '';
+let lastAnalyticsData = null;
+const chartViews = {};
 
 // ── Number formatting ──
 function fmt(n) {
     return n != null ? n.toLocaleString() : '0';
+}
+
+function isMobile() {
+    return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function getDefaultView(chartKey) {
+    const stored = sessionStorage.getItem('chartView_' + chartKey);
+    if (stored === 'chart' || stored === 'table') return stored;
+    return isMobile() ? 'table' : 'chart';
+}
+
+function getChartView(chartKey) {
+    return chartViews[chartKey] || getDefaultView(chartKey);
+}
+
+function getChartEl(chartKey) {
+    return document.getElementById('chart-' + chartKey);
+}
+
+function getTableEl(chartKey) {
+    return document.getElementById('table-' + chartKey);
+}
+
+function getEmptyEl(chartKey) {
+    const map = {
+        daily: 'daily-empty',
+        gender: 'gender-empty',
+        occupation: 'occupation-empty',
+        country: 'country-empty',
+        state: 'state-empty',
+        city: 'city-empty',
+        citystat: 'citystat-empty',
+    };
+    return document.getElementById(map[chartKey]);
+}
+
+function barChartHeight(rowCount, desktopDefault) {
+    if (!isMobile()) return desktopDefault || 380;
+    return Math.min(380, Math.max(200, rowCount * 40 + 80));
+}
+
+function barLeftMargin(labels) {
+    const longest = labels.reduce((m, l) => Math.max(m, String(l).length), 0);
+    return Math.min(200, Math.max(isMobile() ? 80 : 120, longest * 7));
 }
 
 // ── Deep-merge helper for Plotly layouts ──
@@ -63,12 +112,138 @@ function mergeLayout(overrides) {
     return base;
 }
 
+// ── View toggle ──
+function setChartView(chartKey, view, persist) {
+    chartViews[chartKey] = view;
+    if (persist !== false) {
+        sessionStorage.setItem('chartView_' + chartKey, view);
+    }
+
+    const chartEl = getChartEl(chartKey);
+    const tableEl = getTableEl(chartKey);
+    const toggle = document.querySelector(`.view-toggle[data-chart="${chartKey}"]`);
+
+    if (toggle) {
+        toggle.querySelectorAll('.view-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.view === view);
+        });
+    }
+
+    if (chartEl) chartEl.classList.toggle('hidden', view !== 'chart');
+    if (tableEl) tableEl.classList.toggle('hidden', view !== 'table');
+
+    if (view === 'chart' && chartEl && chartEl.querySelector('.plotly')) {
+        Plotly.Plots.resize(chartEl);
+    }
+}
+
+function initViewToggles() {
+    document.querySelectorAll('.view-toggle').forEach(toggle => {
+        const chartKey = toggle.dataset.chart;
+        if (!chartKey) return;
+
+        toggle.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setChartView(chartKey, btn.dataset.view);
+            });
+        });
+    });
+    applyAllChartViews();
+}
+
+function applyAllChartViews() {
+    CHART_KEYS.forEach(key => {
+        if (document.querySelector(`.view-toggle[data-chart="${key}"]`)) {
+            setChartView(key, getChartView(key), false);
+        }
+    });
+}
+
+// ── Table renderers ──
+function renderDistributionTable(tableId, data) {
+    const el = document.getElementById(tableId);
+    if (!el) return;
+
+    if (!data || data.length === 0) {
+        el.innerHTML = '';
+        return;
+    }
+
+    const total = data.reduce((s, d) => s + d.value, 0);
+    const rows = data
+        .slice()
+        .sort((a, b) => b.value - a.value)
+        .map(d => {
+            const pct = total ? ((d.value / total) * 100).toFixed(1) : '0.0';
+            const label = escapeHtml(d.label);
+            return `<tr>
+                <td class="label-cell" title="${label}">${label}</td>
+                <td class="num">${fmt(d.value)}</td>
+                <td class="num">${pct}%</td>
+            </tr>`;
+        })
+        .join('');
+
+    el.innerHTML = `
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Label</th>
+                        <th class="num">Count</th>
+                        <th class="num">Share</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+function renderDailyTable(tableId, daily) {
+    const el = document.getElementById(tableId);
+    if (!el) return;
+
+    if (!daily || !daily.dates || daily.dates.length === 0) {
+        el.innerHTML = '';
+        return;
+    }
+
+    const rows = daily.dates.map((date, i) => {
+        const count = daily.counts[i] ?? 0;
+        const cum = daily.cumulative[i] ?? 0;
+        return `<tr>
+            <td class="label-cell" title="${escapeHtml(date)}">${escapeHtml(date)}</td>
+            <td class="num">${fmt(count)}</td>
+            <td class="num">${fmt(cum)}</td>
+        </tr>`;
+    }).join('');
+
+    el.innerHTML = `
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th class="num">Daily</th>
+                        <th class="num">Cumulative</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // ── Event selection ──
 async function selectEvent(name) {
     if (currentEvent === name) return;
     currentEvent = name;
 
-    // Update sidebar active states
     document.querySelectorAll('.event-btn').forEach(btn => {
         const ev = btn.dataset.event;
         if (ev === name) {
@@ -78,7 +253,7 @@ async function selectEvent(name) {
         }
     });
 
-    await fetch('/api/select', {
+    await fetch(BASE + '/api/select', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: name }),
@@ -99,13 +274,14 @@ async function loadEventData(eventName) {
     loading.classList.remove('hidden');
 
     try {
-        const res = await fetch(`/api/data?event=${encodeURIComponent(eventName)}`);
+        const res = await fetch(BASE + `/api/data?event=${encodeURIComponent(eventName)}`);
         if (!res.ok) throw new Error('Failed to load data');
         const data = await res.json();
 
         loading.classList.add('hidden');
         content.classList.remove('hidden');
 
+        lastAnalyticsData = data;
         renderAll(data);
     } catch (err) {
         loading.classList.add('hidden');
@@ -116,7 +292,7 @@ async function loadEventData(eventName) {
 
 // ── Pin / Unpin ──
 async function pinEvent(name) {
-    await fetch('/api/pin', {
+    await fetch(BASE + '/api/pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: name, action: 'pin' }),
@@ -125,7 +301,7 @@ async function pinEvent(name) {
 }
 
 async function unpinEvent(name) {
-    await fetch('/api/pin', {
+    await fetch(BASE + '/api/pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: name, action: 'unpin' }),
@@ -147,6 +323,7 @@ function switchTab(tab) {
             panel.classList.add('hidden');
         }
     });
+    resizeAllCharts();
 }
 
 // ── Credentials toggle ──
@@ -156,6 +333,34 @@ function toggleCredentials() {
     panel.classList.toggle('hidden');
     chev.classList.toggle('rotate-180');
 }
+
+// ── Resize handling ──
+let resizeTimer;
+function resizeAllCharts() {
+    CHART_KEYS.forEach(key => {
+        const el = getChartEl(key);
+        if (el && el.querySelector('.plotly') && getChartView(key) === 'chart') {
+            Plotly.Plots.resize(el);
+        }
+    });
+}
+
+function debouncedResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        if (lastAnalyticsData) {
+            renderAll(lastAnalyticsData);
+        } else {
+            resizeAllCharts();
+        }
+    }, 150);
+}
+
+window.addEventListener('resize', debouncedResize);
+
+document.addEventListener('DOMContentLoaded', () => {
+    initViewToggles();
+});
 
 // ══════════════════════════════════════════════
 //  Render pipeline
@@ -167,13 +372,14 @@ function renderAll(data) {
     renderProgress(data.kpis.registrations, data.reg_target);
     renderCredentials(data.config);
     renderDailyChart(data.daily);
-    renderPieChart('chart-gender',     'gender-empty',     data.gender,     ['#818cf8','#f472b6','#34d399','#fbbf24','#fb923c']);
-    renderPieChart('chart-occupation', 'occupation-empty', data.occupation, ['#38bdf8','#a78bfa','#fb923c','#4ade80','#f87171','#facc15']);
-    renderBarChart('chart-country', 'country-empty', data.country, [[0,'#1e3a5f'],[1,'#818cf8']]);
-    renderBarChart('chart-state',   'state-empty',   data.state,   [[0,'#134e4a'],[1,'#34d399']]);
-    renderBarChart('chart-city',    'city-empty',    data.city,    [[0,'#312e81'],[1,'#a78bfa']], 420);
-    renderBarChart('chart-citystat', 'citystat-empty', data.city_stat, [[0,'#1e3a5f'],[1,'#38bdf8']], 420);
+    renderPieChart('gender', data.gender, ['#818cf8','#f472b6','#34d399','#fbbf24','#fb923c']);
+    renderPieChart('occupation', data.occupation, ['#38bdf8','#a78bfa','#fb923c','#4ade80','#f87171','#facc15']);
+    renderBarChart('country', data.country, [[0,'#1e3a5f'],[1,'#818cf8']], 380);
+    renderBarChart('state', data.state, [[0,'#134e4a'],[1,'#34d399']], 380);
+    renderBarChart('city', data.city, [[0,'#312e81'],[1,'#a78bfa']], 420);
+    renderBarChart('citystat', data.city_stat, [[0,'#1e3a5f'],[1,'#38bdf8']], 420);
     toggleCityStatTab(data.city_stat);
+    applyAllChartViews();
 }
 
 function toggleCityStatTab(cityStatData) {
@@ -232,22 +438,42 @@ function renderCredentials(config) {
     document.getElementById('cred-password').textContent = config.admin_password || '—';
 }
 
+function showChartSection(chartKey, hasData) {
+    const chartEl = getChartEl(chartKey);
+    const tableEl = getTableEl(chartKey);
+    const emptyEl = getEmptyEl(chartKey);
+    const toggle = document.querySelector(`.view-toggle[data-chart="${chartKey}"]`);
+
+    if (!hasData) {
+        if (chartEl) { chartEl.innerHTML = ''; chartEl.style.display = 'none'; }
+        if (tableEl) { tableEl.innerHTML = ''; tableEl.classList.add('hidden'); }
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        if (toggle) toggle.classList.add('hidden');
+        return;
+    }
+
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (toggle) toggle.classList.remove('hidden');
+    if (chartEl) chartEl.style.display = '';
+}
+
 // ── Daily Registration Chart ──
 function renderDailyChart(daily) {
-    const el    = document.getElementById('chart-daily');
-    const empty = document.getElementById('daily-empty');
+    const el    = getChartEl('daily');
     const cap   = document.getElementById('daily-caption');
 
+    renderDailyTable('table-daily', daily);
+
     if (!daily || !daily.dates || daily.dates.length === 0) {
-        el.innerHTML = '';
-        el.style.display = 'none';
-        empty.classList.remove('hidden');
+        showChartSection('daily', false);
         cap.classList.add('hidden');
         return;
     }
 
-    el.style.display = '';
-    empty.classList.add('hidden');
+    showChartSection('daily', true);
+
+    const height = isMobile() ? 280 : 400;
+    el.style.height = height + 'px';
 
     const traces = [
         {
@@ -273,14 +499,20 @@ function renderDailyChart(daily) {
     ];
 
     const layout = mergeLayout({
-        height: 400,
+        height,
         hovermode: 'x unified',
         showlegend: true,
         bargap: 0.15,
         legend: {
-            orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1,
-            font: { size: 11, color: '#ffffff' }, bgcolor: 'rgba(0,0,0,0)',
+            orientation: isMobile() ? 'h' : 'h',
+            yanchor: 'bottom',
+            y: isMobile() ? -0.2 : 1.02,
+            xanchor: 'right',
+            x: 1,
+            font: { size: 11, color: '#ffffff' },
+            bgcolor: 'rgba(0,0,0,0)',
         },
+        margin: isMobile() ? { l: 40, r: 40, t: 30, b: 60 } : { l: 50, r: 30, t: 30, b: 50 },
         xaxis: { title: { text: 'Date' } },
         yaxis: { title: { text: 'Daily' } },
         yaxis2: {
@@ -293,73 +525,76 @@ function renderDailyChart(daily) {
         annotations: [],
     });
 
-    // Average daily line
     if (daily.average_daily) {
         layout.shapes.push({
             type: 'line', xref: 'paper', x0: 0, x1: 1,
             yref: 'y', y0: daily.average_daily, y1: daily.average_daily,
             line: { dash: 'dash', color: COLORS.amber, width: 1.5 },
         });
-        layout.annotations.push({
-            xref: 'paper', x: 0, yref: 'y', y: daily.average_daily,
-            text: `Avg: ${fmt(daily.average_daily)}`,
-            showarrow: false, font: { size: 10, color: COLORS.amber },
-            bgcolor: 'rgba(15,23,42,0.85)', bordercolor: COLORS.amber,
-            borderpad: 3, xanchor: 'left', yanchor: 'top',
-        });
+        if (!isMobile()) {
+            layout.annotations.push({
+                xref: 'paper', x: 0, yref: 'y', y: daily.average_daily,
+                text: `Avg: ${fmt(daily.average_daily)}`,
+                showarrow: false, font: { size: 10, color: COLORS.amber },
+                bgcolor: 'rgba(15,23,42,0.85)', bordercolor: COLORS.amber,
+                borderpad: 3, xanchor: 'left', yanchor: 'top',
+            });
+        }
     }
 
-    // Required average line
     if (daily.req_avg != null) {
         layout.shapes.push({
             type: 'line', xref: 'paper', x0: 0, x1: 1,
             yref: 'y', y0: daily.req_avg, y1: daily.req_avg,
             line: { dash: 'dot', color: COLORS.green, width: 1.5 },
         });
-        layout.annotations.push({
-            xref: 'paper', x: 0, yref: 'y', y: daily.req_avg,
-            text: daily.req_avg_label || `Req: ${fmt(daily.req_avg)}`,
-            showarrow: false, font: { size: 10, color: COLORS.green },
-            bgcolor: 'rgba(15,23,42,0.85)', bordercolor: COLORS.green,
-            borderpad: 3, xanchor: 'left', yanchor: 'bottom',
-        });
+        if (!isMobile()) {
+            layout.annotations.push({
+                xref: 'paper', x: 0, yref: 'y', y: daily.req_avg,
+                text: daily.req_avg_label || `Req: ${fmt(daily.req_avg)}`,
+                showarrow: false, font: { size: 10, color: COLORS.green },
+                bgcolor: 'rgba(15,23,42,0.85)', bordercolor: COLORS.green,
+                borderpad: 3, xanchor: 'left', yanchor: 'bottom',
+            });
+        }
     }
 
-    // Target line on y2
     if (daily.reg_target) {
         layout.shapes.push({
             type: 'line', xref: 'paper', x0: 0, x1: 1,
             yref: 'y2', y0: daily.reg_target, y1: daily.reg_target,
             line: { dash: 'dash', color: 'rgba(148,163,184,0.3)', width: 1 },
         });
-        layout.annotations.push({
-            xref: 'paper', x: 1, yref: 'y2', y: daily.reg_target,
-            text: `Target: ${fmt(daily.reg_target)}`,
-            showarrow: false, font: { size: 10, color: COLORS.muted },
-            bgcolor: 'rgba(15,23,42,0.85)',
-            borderpad: 3, xanchor: 'right', yanchor: 'bottom',
-        });
+        if (!isMobile()) {
+            layout.annotations.push({
+                xref: 'paper', x: 1, yref: 'y2', y: daily.reg_target,
+                text: `Target: ${fmt(daily.reg_target)}`,
+                showarrow: false, font: { size: 10, color: COLORS.muted },
+                bgcolor: 'rgba(15,23,42,0.85)',
+                borderpad: 3, xanchor: 'right', yanchor: 'bottom',
+            });
+        }
     }
 
     Plotly.newPlot(el, traces, layout, PLOTLY_CONFIG);
-
     cap.classList.add('hidden');
 }
 
 // ── Pie / Donut Chart ──
-function renderPieChart(containerId, emptyId, data, colorSeq) {
-    const el    = document.getElementById(containerId);
-    const empty = document.getElementById(emptyId);
+function renderPieChart(chartKey, data, colorSeq) {
+    const el = getChartEl(chartKey);
+
+    renderDistributionTable('table-' + chartKey, data);
 
     if (!data || data.length === 0) {
-        el.innerHTML = '';
-        el.style.display = 'none';
-        empty.classList.remove('hidden');
+        showChartSection(chartKey, false);
         return;
     }
 
-    el.style.display = '';
-    empty.classList.add('hidden');
+    showChartSection(chartKey, true);
+
+    const height = isMobile() ? 260 : 320;
+    el.style.height = height + 'px';
 
     const trace = {
         values: data.map(d => d.value),
@@ -372,32 +607,36 @@ function renderPieChart(containerId, emptyId, data, colorSeq) {
     };
 
     const layout = mergeLayout({
-        height: 320,
+        height,
         showlegend: true,
-        legend: { font: { size: 11, color: '#ffffff' } },
-        margin: { l: 20, r: 20, t: 20, b: 20 },
+        legend: isMobile()
+            ? { orientation: 'h', yanchor: 'top', y: -0.15, xanchor: 'center', x: 0.5, font: { size: 10, color: '#ffffff' } }
+            : { font: { size: 11, color: '#ffffff' } },
+        margin: isMobile() ? { l: 10, r: 10, t: 10, b: 40 } : { l: 20, r: 20, t: 20, b: 20 },
     });
 
     Plotly.newPlot(el, [trace], layout, PLOTLY_CONFIG);
 }
 
 // ── Horizontal Bar Chart ──
-function renderBarChart(containerId, emptyId, data, colorscale, height) {
-    const el    = document.getElementById(containerId);
-    const empty = document.getElementById(emptyId);
+function renderBarChart(chartKey, data, colorscale, desktopHeight) {
+    const el = getChartEl(chartKey);
+
+    renderDistributionTable('table-' + chartKey, data);
 
     if (!data || data.length === 0) {
-        el.innerHTML = '';
-        el.style.display = 'none';
-        empty.classList.remove('hidden');
+        showChartSection(chartKey, false);
         return;
     }
 
-    el.style.display = '';
-    empty.classList.add('hidden');
+    showChartSection(chartKey, true);
 
     const labels = data.map(d => d.label);
     const values = data.map(d => d.value);
+    const height = barChartHeight(labels.length, desktopHeight);
+    const leftMargin = barLeftMargin(labels);
+
+    el.style.height = height + 'px';
 
     const trace = {
         x: values,
@@ -414,10 +653,10 @@ function renderBarChart(containerId, emptyId, data, colorscale, height) {
     };
 
     const layout = mergeLayout({
-        height: height || 380,
+        height,
         showlegend: false,
-        yaxis: { autorange: 'reversed' },
-        margin: { l: 120, r: 30, t: 20, b: 40 },
+        yaxis: { autorange: 'reversed', tickfont: { size: isMobile() ? 10 : 11 } },
+        margin: { l: leftMargin, r: 20, t: 20, b: 40 },
     });
 
     Plotly.newPlot(el, [trace], layout, PLOTLY_CONFIG);

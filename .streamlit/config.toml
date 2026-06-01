@@ -1,7 +1,8 @@
 [server]
 port = 3005
 headless = true
-enableCORS = false
+# enableCORS=false conflicts with enableXsrfProtection=true (Streamlit forces CORS on for XSRF cookies).
+# Omit or set true; same-origin / reverse-proxy use is unaffected.
 enableXsrfProtection = true
 
 [browser]

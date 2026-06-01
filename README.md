@@ -16,9 +16,10 @@ A professional Streamlit dashboard that connects to a Google Sheet and visualize
 
 ```
 project/
-    app.py              # Main Streamlit application
+    app.py              # Streamlit dashboard (use streamlit run or python app.py)
+    server.py           # Flask + portal UI (used by run.py)
     auth.py             # RBAC: users, roles, login
-    run.py              # Start server on port 3005 (python run.py)
+    run.py              # Start Flask on port 3005 — production (python run.py)
     sheets_connector.py # Google Sheets connection (gspread + service account)
     utils.py            # JSON parsing and aggregation helpers
     .streamlit/
@@ -94,16 +95,23 @@ To add users or change the salt, edit `auth.py` (USER_STORE and AUTH_SALT). Use 
 
 ## Run the app
 
-The dashboard runs as a Python (Streamlit) server on **port 3005**.
+Two entry points:
 
-**Option 1 — using the run script (recommended):**
+| Command | What it starts | Use when |
+|--------|----------------|----------|
+| `python run.py` | **Flask** app (`server.py`) on port **3005** — portal JWT, HTML UI | Production behind Hack2skill Central Data Intelligence / nginx |
+| `streamlit run app.py` or `python app.py` | **Streamlit** dashboard on **3005** (see `.streamlit/config.toml`) | Legacy Streamlit UI only |
+
+Do **not** rely on `python app.py` without this repo’s bootstrap: older setups would show `missing ScriptRunContext` because Streamlit must own the process. After the bootstrap, `python app.py` is equivalent to `streamlit run app.py`.
+
 ```bash
+# Portal-integrated web app (recommended for h2s.tech / proxy)
 python run.py
-```
 
-**Option 2 — using Streamlit directly:**
-```bash
-streamlit run app.py --server.port 3005
+# Streamlit version (same data layer, different UI)
+streamlit run app.py
+# or
+python app.py
 ```
 
 Then open **http://localhost:3005** in your browser.

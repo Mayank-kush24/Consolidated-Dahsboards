@@ -11,5 +11,29 @@
       "Build with AI: Bootcamps",
       "Build with AI: PromptWars"
     ]
+  },
+  "ermayankkush2482@gmail.com": {
+    "password_hash": "329b188a7743adbe0a26ede3d6a4462d87133d36b7c8408d4ab3136af2410d70",
+    "role": "viewer",
+    "allowed_events": [
+      "Build with AI: Bootcamps",
+      "Build with AI: PromptWars"
+    ]
+  },
+  "jitesh.koul@hack2skill.com": {
+    "password_hash": "329b188a7743adbe0a26ede3d6a4462d87133d36b7c8408d4ab3136af2410d70",
+    "role": "viewer",
+    "allowed_events": [
+      "Build with AI: Bootcamps",
+      "Build with AI: PromptWars"
+    ]
+  },
+  "roykaushik96@gmail.com": {
+    "password_hash": "5a0402603324d689717502ba752c003e3e737a313f751d629c16665f5c66915c",
+    "role": "viewer",
+    "allowed_events": [
+      "AI For Bharat",
+      "AI-Code Sarathi"
+    ]
   }
 }

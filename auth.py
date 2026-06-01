@@ -189,6 +189,17 @@ def update_user(
     return True, f"User '{username}' updated."
 
 
+def remove_user_access(email: str) -> Tuple[bool, str]:
+    """Remove a user's event-access restriction. They revert to seeing all events."""
+    email = email.strip().lower()
+    users = load_users()
+    if email not in users:
+        return False, f"No restriction found for '{email}'."
+    del users[email]
+    save_users(users)
+    return True, f"Access restriction removed for '{email}'."
+
+
 def delete_user(username: str, requesting_user: str) -> Tuple[bool, str]:
     """Delete a user. Cannot delete yourself or the last admin."""
     username = username.strip().lower()
